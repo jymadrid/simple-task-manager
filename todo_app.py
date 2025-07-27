@@ -16,12 +16,16 @@ License: MIT
 
 import json
 import os
+import uuid
 from datetime import datetime
+from typing import Dict, List, Optional
 
 class TodoList:
     def __init__(self, filename="tasks.json"):
         self.filename = filename
-        self.tasks = self.load_tasks()
+        self.tasks: List[Dict] = self.load_tasks()
+        self.task_index: Dict[str, Dict] = {task["id"]: task for task in self.tasks}
+        self._dirty = False
 
     def load_tasks(self):
         """Load tasks from file"""
@@ -35,24 +39,39 @@ class TodoList:
         return []
 
     def save_tasks(self):
-        """Save tasks to file"""
+        """Save tasks to file only if changes were made"""
+        if not self._dirty:
+            return
         try:
             with open(self.filename, 'w', encoding='utf-8') as file:
                 json.dump(self.tasks, file, ensure_ascii=False, indent=2)
+            self._dirty = False
         except Exception as e:
             print(f"保存任务时出错: {e}")
 
-    def add_task(self, description):
+    def _mark_dirty(self):
+        """Mark that changes need to be saved"""
+        self._dirty = True
+
+    def add_task(self, description: str) -> bool:
         """Add a new task"""
+        if not description or not description.strip():
+            print("❌ 任务描述不能为空")
+            return False
+            
+        task_id = str(uuid.uuid4())[:8]
         task = {
-            "id": len(self.tasks) + 1,
-            "description": description,
+            "id": task_id,
+            "description": description.strip(),
             "completed": False,
             "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
         self.tasks.append(task)
+        self.task_index[task_id] = task
+        self._mark_dirty()
         self.save_tasks()
         print(f"✅ 任务已添加: {description}")
+        return True
 
     def view_tasks(self):
         """Display all tasks"""
@@ -62,38 +81,75 @@ class TodoList:
 
         print("\n📋 任务列表:")
         print("-" * 50)
-        for task in self.tasks:
+        for i, task in enumerate(self.tasks, 1):
             status = "✅" if task["completed"] else "⏳"
-            print(f"{status} [{task['id']}] {task['description']}")
+            print(f"{status} [{i}] {task['description']} (ID: {task['id'][:6]})")
             print(f"   创建时间: {task['created_at']}")
         print("-" * 50)
 
-    def complete_task(self, task_id):
-        """Mark a task as completed"""
-        for task in self.tasks:
-            if task["id"] == task_id:
-                if task["completed"]:
-                    print(f"❌ 任务 {task_id} 已经完成了")
-                else:
-                    task["completed"] = True
-                    task["completed_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    self.save_tasks()
-                    print(f"🎉 任务 {task_id} 已标记为完成!")
-                return
-        print(f"❌ 未找到ID为 {task_id} 的任务")
+    def _find_task_by_number(self, display_number: int) -> Optional[Dict]:
+        """Find task by display number (1-indexed)"""
+        if 1 <= display_number <= len(self.tasks):
+            return self.tasks[display_number - 1]
+        return None
 
-    def delete_task(self, task_id):
-        """Delete a task"""
-        for i, task in enumerate(self.tasks):
-            if task["id"] == task_id:
-                deleted_task = self.tasks.pop(i)
-                # Reorder task IDs
-                for j, remaining_task in enumerate(self.tasks[i:], start=i):
-                    remaining_task["id"] = j + 1
-                self.save_tasks()
-                print(f"🗑️ 任务已删除: {deleted_task['description']}")
-                return
-        print(f"❌ 未找到ID为 {task_id} 的任务")
+    def complete_task(self, task_number: int) -> bool:
+        """Mark a task as completed using display number"""
+        task = self._find_task_by_number(task_number)
+        if not task:
+            print(f"❌ 未找到编号为 {task_number} 的任务")
+            return False
+            
+        if task["completed"]:
+            print(f"❌ 任务 {task_number} 已经完成了")
+            return False
+        else:
+            task["completed"] = True
+            task["completed_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            self._mark_dirty()
+            self.save_tasks()
+            print(f"🎉 任务 {task_number} 已标记为完成!")
+            return True
+
+    def delete_task(self, task_number: int) -> bool:
+        """Delete a task using display number"""
+        task = self._find_task_by_number(task_number)
+        if not task:
+            print(f"❌ 未找到编号为 {task_number} 的任务")
+            return False
+            
+        # Remove from index and list
+        del self.task_index[task["id"]]
+        self.tasks.remove(task)
+        self._mark_dirty()
+        self.save_tasks()
+        print(f"🗑️ 任务已删除: {task['description']}")
+        return True
+
+def safe_input(prompt: str, input_type=str, validator=None):
+    """Safe input with type validation"""
+    while True:
+        try:
+            user_input = input(prompt).strip()
+            if not user_input:
+                if input_type == str:
+                    return None
+                else:
+                    print("❌ 输入不能为空，请重试")
+                    continue
+                    
+            converted_input = input_type(user_input)
+            
+            if validator and not validator(converted_input):
+                print("❌ 输入无效，请重试")
+                continue
+                
+            return converted_input
+        except ValueError:
+            print(f"❌ 请输入有效的{input_type.__name__}类型")
+        except KeyboardInterrupt:
+            print("\n👋 操作已取消")
+            return None
 
 def display_menu():
     """Display the main menu"""
@@ -109,44 +165,53 @@ def display_menu():
 
 def main():
     """Main program loop"""
+    import sys
+    if sys.platform == "win32":
+        import os
+        os.system("chcp 65001 >nul")
+    
     todo = TodoList()
 
-    print("欢迎使用简单任务管理器! 🎯")
+    print("欢迎使用简单任务管理器!")
 
     while True:
         display_menu()
-        choice = input("请选择操作 (1-5): ").strip()
+        choice = safe_input("请选择操作 (1-5): ", str, lambda x: x in "12345")
+        
+        if choice is None:
+            continue
 
         if choice == "1":
-            description = input("输入新任务: ").strip()
+            description = safe_input("输入新任务: ")
             if description:
                 todo.add_task(description)
-            else:
-                print("❌ 任务描述不能为空")
 
         elif choice == "2":
             todo.view_tasks()
 
         elif choice == "3":
-            try:
-                task_id = int(input("输入要完成的任务ID: "))
-                todo.complete_task(task_id)
-            except ValueError:
-                print("❌ 请输入有效的数字ID")
+            if not todo.tasks:
+                print("没有可完成的任务")
+                continue
+            task_number = safe_input("输入要完成的任务编号: ", int, 
+                                   lambda x: 1 <= x <= len(todo.tasks))
+            if task_number is not None:
+                todo.complete_task(task_number)
 
         elif choice == "4":
-            try:
-                task_id = int(input("输入要删除的任务ID: "))
-                todo.delete_task(task_id)
-            except ValueError:
-                print("❌ 请输入有效的数字ID")
+            if not todo.tasks:
+                print("没有可删除的任务")
+                continue
+            task_number = safe_input("输入要删除的任务编号: ", int,
+                                   lambda x: 1 <= x <= len(todo.tasks))
+            if task_number is not None:
+                todo.delete_task(task_number)
 
         elif choice == "5":
-            print("👋 再见! 感谢使用任务管理器!")
+            # Save any pending changes before exit
+            todo.save_tasks()
+            print("再见! 感谢使用任务管理器!")
             break
-
-        else:
-            print("❌ 无效选择，请输入1-5之间的数字")
 
 if __name__ == "__main__":
     main()
