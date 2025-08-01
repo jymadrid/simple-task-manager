@@ -1,4 +1,3 @@
-[README.md](https://github.com/user-attachments/files/21544072/README.md)
 # 🔥 TaskForge
 
 A comprehensive, extensible task management platform designed for developers, teams, and organizations.
