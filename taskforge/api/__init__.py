@@ -99,7 +99,7 @@ def get_auth_manager() -> AuthManager:
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> User:
     """Get current authenticated user"""
     auth_mgr = get_auth_manager()
-    user_id = await auth_mgr.verify_token(credentials.credentials)
+    user_id = await auth_mgr.verify_token_async(credentials.credentials)
     
     if not user_id:
         raise HTTPException(

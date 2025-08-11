@@ -56,7 +56,7 @@ class AuthManager:
         token_data = {"sub": user_id}
         return self.create_access_token(token_data)
     
-    async def verify_token(self, token: str) -> Optional[str]:
+    async def verify_token_async(self, token: str) -> Optional[str]:
         """Verify token and return user ID"""
         payload = self.verify_token(token)
         if payload:
