@@ -6,6 +6,7 @@
   <img src="https://img.shields.io/badge/PRs-Welcome-brightgreen?style=for-the-badge" alt="PRs Welcome">
   <img src="https://img.shields.io/badge/Coverage-77%25-green?style=for-the-badge" alt="Test Coverage">
   <img src="https://img.shields.io/badge/FastAPI-Ready-00C7B7?style=for-the-badge&logo=fastapi" alt="FastAPI Ready">
+  <img src="https://github.com/jymadrid/simple-task-manager/workflows/TaskForge%20CI/badge.svg" alt="CI Status">
 </div>
 
 <br>
