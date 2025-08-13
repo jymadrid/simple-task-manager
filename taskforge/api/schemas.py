@@ -1,8 +1,10 @@
-from pydantic import BaseModel, EmailStr, Field
-from typing import Optional, List, Set
 from datetime import datetime
+from typing import List, Optional, Set
+
+from pydantic import BaseModel, EmailStr, Field
+
 from taskforge.core.project import ProjectStatus
-from taskforge.core.task import TaskStatus, TaskPriority, TaskType
+from taskforge.core.task import TaskPriority, TaskStatus, TaskType
 
 
 # User Schemas
@@ -11,6 +13,7 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str
     full_name: Optional[str] = None
+
 
 class UserPublic(BaseModel):
     id: str
@@ -21,15 +24,18 @@ class UserPublic(BaseModel):
     class Config:
         from_attributes = True
 
+
 # Project Schemas
 class ProjectCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     description: Optional[str] = Field(None, max_length=1000)
 
+
 class ProjectUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     description: Optional[str] = Field(None, max_length=1000)
     status: Optional[ProjectStatus] = None
+
 
 class ProjectPublic(BaseModel):
     id: str
@@ -43,6 +49,7 @@ class ProjectPublic(BaseModel):
     class Config:
         from_attributes = True
 
+
 # Task Schemas
 class TaskCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
@@ -52,6 +59,7 @@ class TaskCreate(BaseModel):
     due_date: Optional[datetime] = None
     tags: Set[str] = set()
 
+
 class TaskUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=1, max_length=200)
     description: Optional[str] = None
@@ -60,6 +68,7 @@ class TaskUpdate(BaseModel):
     due_date: Optional[datetime] = None
     assigned_to: Optional[str] = None
     progress: Optional[int] = Field(None, ge=0, le=100)
+
 
 class TaskPublic(BaseModel):
     id: str

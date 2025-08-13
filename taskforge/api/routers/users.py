@@ -1,11 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException
 from typing import List
-from taskforge.api.schemas import UserCreate, UserPublic
-from taskforge.core.user import User
-from taskforge.core.manager import TaskManager
+
+from fastapi import APIRouter, Depends, HTTPException
+
 from taskforge.api.dependencies import get_task_manager
+from taskforge.api.schemas import UserCreate, UserPublic
+from taskforge.core.manager import TaskManager
+from taskforge.core.user import User
 
 router = APIRouter()
+
 
 @router.post("/", response_model=UserPublic, status_code=201)
 async def create_user(
@@ -28,6 +31,7 @@ async def create_user(
         return created_user
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
 
 @router.get("/{user_id}", response_model=UserPublic)
 async def read_user(

@@ -6,10 +6,10 @@ for developers, teams, and organizations. It offers multiple interfaces
 (CLI, Web API, GUI) and extensive customization through plugins.
 """
 
-from taskforge.core.task import Task, TaskStatus, TaskPriority
-from taskforge.core.project import Project
-from taskforge.core.user import User
 from taskforge.core.manager import TaskManager
+from taskforge.core.project import Project
+from taskforge.core.task import Task, TaskPriority, TaskStatus
+from taskforge.core.user import User
 
 __version__ = "0.1.0"
 __author__ = "TaskForge Community"
@@ -17,7 +17,7 @@ __email__ = "maintainers@taskforge.dev"
 
 __all__ = [
     "Task",
-    "TaskStatus", 
+    "TaskStatus",
     "TaskPriority",
     "Project",
     "User",

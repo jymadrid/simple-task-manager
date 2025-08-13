@@ -2,16 +2,17 @@
 Query models for TaskForge
 """
 
+from dataclasses import dataclass
 from datetime import datetime
 from typing import List, Optional
-from dataclasses import dataclass
 
-from taskforge.core.task import TaskStatus, TaskPriority
+from taskforge.core.task import TaskPriority, TaskStatus
 
 
 @dataclass
 class TaskQuery:
     """Query parameters for task filtering and searching"""
+
     status: Optional[List[TaskStatus]] = None
     priority: Optional[List[TaskPriority]] = None
     assigned_to: Optional[str] = None

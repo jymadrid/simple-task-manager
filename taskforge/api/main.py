@@ -1,5 +1,7 @@
 from fastapi import FastAPI
-from taskforge.api.routers import users, projects, tasks
+
+from taskforge.api.routers import projects, tasks, users
+
 from .dependencies import storage  # Import storage to initialize it
 
 app = FastAPI(
@@ -8,15 +10,18 @@ app = FastAPI(
     version="0.1.0",
 )
 
+
 @app.on_event("startup")
 async def startup_event():
     """Initialize the database on startup."""
     await storage.initialize()
 
+
 @app.get("/", tags=["Health"])
 async def read_root():
     """A simple health check endpoint."""
     return {"status": "ok"}
+
 
 # Include routers
 app.include_router(users.router, prefix="/api/v1/users", tags=["Users"])

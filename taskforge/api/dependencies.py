@@ -1,5 +1,6 @@
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
 from taskforge.core.manager import TaskManager
 from taskforge.core.user import User
 from taskforge.storage.json_storage import JSONStorage
@@ -9,8 +10,10 @@ from taskforge.storage.json_storage import JSONStorage
 storage = JSONStorage()
 task_manager = TaskManager(storage=storage)
 
+
 async def get_task_manager() -> TaskManager:
     return task_manager
+
 
 # This is a placeholder for a real authentication system.
 # It currently fakes a user for development purposes.
@@ -23,10 +26,8 @@ async def get_current_user() -> User:
     user = await storage.get_user_by_username("testuser")
     if not user:
         user = User.create_user(
-            username="testuser",
-            email="test@example.com",
-            password="password"
+            username="testuser", email="test@example.com", password="password"
         )
-        user.id = "user-test-01" # predictable ID
+        user.id = "user-test-01"  # predictable ID
         await storage.create_user(user)
     return user

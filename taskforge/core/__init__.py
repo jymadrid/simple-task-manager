@@ -1,13 +1,19 @@
 """Core package initialization"""
 
-from .task import Task, TaskStatus, TaskPriority, TaskType
-from .project import Project, ProjectStatus
-from .user import User, UserRole, Permission
 from .manager import TaskManager
+from .project import Project, ProjectStatus
+from .task import Task, TaskPriority, TaskStatus, TaskType
+from .user import Permission, User, UserRole
 
 __all__ = [
-    "Task", "TaskStatus", "TaskPriority", "TaskType",
-    "Project", "ProjectStatus", 
-    "User", "UserRole", "Permission",
-    "TaskManager"
+    "Task",
+    "TaskStatus",
+    "TaskPriority",
+    "TaskType",
+    "Project",
+    "ProjectStatus",
+    "User",
+    "UserRole",
+    "Permission",
+    "TaskManager",
 ]
