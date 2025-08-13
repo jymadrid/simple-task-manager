@@ -3,6 +3,7 @@ Test configuration and utilities
 """
 
 import pytest
+import pytest_asyncio
 import asyncio
 import tempfile
 import shutil
@@ -13,7 +14,7 @@ from taskforge.core.manager import TaskManager
 from taskforge.core.task import Task, TaskStatus, TaskPriority
 from taskforge.core.project import Project
 from taskforge.core.user import User, UserRole
-from taskforge.storage.json_storage import JsonStorage
+from taskforge.storage.json_storage import JSONStorage
 
 
 @pytest.fixture(scope="session")
@@ -32,23 +33,23 @@ def temp_dir() -> Generator[Path, None, None]:
     shutil.rmtree(temp_path)
 
 
-@pytest.fixture
-async def storage(temp_dir: Path) -> AsyncGenerator[JsonStorage, None]:
+@pytest_asyncio.fixture
+async def storage(temp_dir: Path) -> AsyncGenerator[JSONStorage, None]:
     """Create a test storage instance"""
-    storage = JsonStorage(str(temp_dir))
+    storage = JSONStorage(str(temp_dir))
     await storage.initialize()
     yield storage
     await storage.cleanup()
 
 
-@pytest.fixture
-async def task_manager(storage: JsonStorage) -> AsyncGenerator[TaskManager, None]:
+@pytest_asyncio.fixture
+async def task_manager(storage: JSONStorage) -> AsyncGenerator[TaskManager, None]:
     """Create a test task manager"""
     manager = TaskManager(storage)
     yield manager
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def sample_user(task_manager: TaskManager) -> User:
     """Create a sample user for testing"""
     user = User.create_user(
@@ -62,7 +63,7 @@ async def sample_user(task_manager: TaskManager) -> User:
     return created_user
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def sample_project(task_manager: TaskManager, sample_user: User) -> Project:
     """Create a sample project for testing"""
     project = Project(
@@ -74,7 +75,7 @@ async def sample_project(task_manager: TaskManager, sample_user: User) -> Projec
     return created_project
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def sample_task(task_manager: TaskManager, sample_user: User, sample_project: Project) -> Task:
     """Create a sample task for testing"""
     task = Task(

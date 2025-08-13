@@ -6,7 +6,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional, List, Dict, Any, Set
 from uuid import uuid4
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, Field, EmailStr, ConfigDict
 import bcrypt
 
 
@@ -128,12 +128,13 @@ class User(BaseModel):
     activity_log: List[Dict[str, Any]] = Field(default_factory=list)
     settings: Dict[str, Any] = Field(default_factory=dict)
 
-    class Config:
-        use_enum_values = True
-        json_encoders = {
+    model_config = ConfigDict(
+        use_enum_values=True,
+        json_encoders={
             datetime: lambda v: v.isoformat(),
             set: list,
         }
+    )
 
     @classmethod
     def create_user(cls, username: str, email: str, password: str, 
@@ -205,7 +206,7 @@ class User(BaseModel):
 
     def to_public_dict(self) -> Dict[str, Any]:
         """Return user data safe for public consumption (excludes sensitive fields)"""
-        data = self.dict(exclude={'password_hash', 'activity_log'})
+        data = self.model_dump(exclude={'password_hash', 'activity_log'})
         return data
 
     def __str__(self) -> str:

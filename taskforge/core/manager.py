@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any, Set
 from collections import defaultdict
 import asyncio
-from dataclasses import dataclass
+from taskforge.core.queries import TaskQuery
 
 from taskforge.core.task import Task, TaskStatus, TaskPriority
 from taskforge.core.project import Project, ProjectStatus
@@ -15,23 +15,6 @@ from taskforge.storage.base import StorageBackend
 from taskforge.utils.notifications import NotificationManager
 from taskforge.utils.search import SearchEngine
 from taskforge.utils.analytics import AnalyticsEngine
-
-
-@dataclass
-class TaskQuery:
-    """Query parameters for task filtering and searching"""
-    status: Optional[List[TaskStatus]] = None
-    priority: Optional[List[TaskPriority]] = None
-    assigned_to: Optional[str] = None
-    project_id: Optional[str] = None
-    tags: Optional[List[str]] = None
-    created_after: Optional[datetime] = None
-    created_before: Optional[datetime] = None
-    due_after: Optional[datetime] = None
-    due_before: Optional[datetime] = None
-    search_text: Optional[str] = None
-    limit: int = 100
-    offset: int = 0
 
 
 class TaskManager:

@@ -3,6 +3,7 @@ Unit tests for Storage backends
 """
 
 import pytest
+import pytest_asyncio
 import asyncio
 import tempfile
 import os
@@ -12,11 +13,11 @@ from datetime import datetime, timedelta
 from taskforge.core.task import Task, TaskStatus, TaskPriority
 from taskforge.core.project import Project, ProjectStatus
 from taskforge.core.user import User, UserRole
-from taskforge.core.manager import TaskQuery
-from taskforge.storage.json_storage import JsonStorage
+from taskforge.core.queries import TaskQuery
+from taskforge.storage.json_storage import JSONStorage
 
 
-class TestJsonStorage:
+class TestJSONStorage:
     """Test cases for JSON storage backend"""
     
     @pytest.fixture
@@ -26,10 +27,10 @@ class TestJsonStorage:
         yield temp_dir
         shutil.rmtree(temp_dir)
     
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def storage(self, temp_dir):
         """Create and initialize a JSON storage backend"""
-        storage = JsonStorage(temp_dir)
+        storage = JSONStorage(temp_dir)
         await storage.initialize()
         yield storage
         await storage.cleanup()
@@ -266,7 +267,7 @@ class TestJsonStorage:
     async def test_data_persistence(self, temp_dir):
         """Test data persistence across storage instances"""
         # Create first storage instance
-        storage1 = JsonStorage(temp_dir)
+        storage1 = JSONStorage(temp_dir)
         await storage1.initialize()
         
         # Create test data
@@ -275,7 +276,7 @@ class TestJsonStorage:
         await storage1.cleanup()
         
         # Create second storage instance
-        storage2 = JsonStorage(temp_dir)
+        storage2 = JSONStorage(temp_dir)
         await storage2.initialize()
         
         # Verify data persistence

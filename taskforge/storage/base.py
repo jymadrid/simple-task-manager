@@ -7,7 +7,7 @@ from typing import List, Optional, Dict, Any
 from taskforge.core.task import Task
 from taskforge.core.project import Project
 from taskforge.core.user import User
-from taskforge.core.manager import TaskQuery
+from taskforge.core.queries import TaskQuery
 
 
 class StorageBackend(ABC):

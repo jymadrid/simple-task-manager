@@ -11,11 +11,12 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import uvicorn
 
-from taskforge.core.manager import TaskManager, TaskQuery
+from taskforge.core.manager import TaskManager
+from taskforge.core.queries import TaskQuery
 from taskforge.core.task import Task, TaskStatus, TaskPriority, TaskType
 from taskforge.core.project import Project, ProjectStatus
 from taskforge.core.user import User, UserRole
-from taskforge.storage.json_storage import JsonStorage
+from taskforge.storage.json_storage import JSONStorage
 from taskforge.utils.auth import AuthManager
 from taskforge.utils.config import Config
 
@@ -85,7 +86,7 @@ def get_manager() -> TaskManager:
     global manager
     if manager is None:
         config = Config.load()
-        storage = JsonStorage(config.data_directory)
+        storage = JSONStorage(config.data_directory)
         manager = TaskManager(storage)
     return manager
 

@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Optional, List, Dict, Any, Set
 from uuid import uuid4
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from dataclasses import dataclass
 
 
@@ -134,18 +134,21 @@ class Task(BaseModel):
     external_links: Dict[str, str] = Field(default_factory=dict)
     integration_data: Dict[str, Any] = Field(default_factory=dict)
 
-    class Config:
-        use_enum_values = True
-        json_encoders = {
+    model_config = ConfigDict(
+        use_enum_values=True,
+        json_encoders={
             datetime: lambda v: v.isoformat(),
             set: list,
         }
+    )
 
-    @validator('updated_at', always=True)
+    @field_validator('updated_at', mode='before')
+    @classmethod
     def set_updated_at(cls, v):
         return datetime.utcnow()
 
-    @validator('progress')
+    @field_validator('progress')
+    @classmethod
     def validate_progress(cls, v):
         if not 0 <= v <= 100:
             raise ValueError('Progress must be between 0 and 100')
@@ -245,7 +248,7 @@ class Task(BaseModel):
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert task to dictionary"""
-        return self.dict()
+        return self.model_dump()
 
     def __str__(self) -> str:
         return f"Task({self.id[:8]}): {self.title} [{self.status.value}]"

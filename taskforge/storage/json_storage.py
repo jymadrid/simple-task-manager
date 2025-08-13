@@ -16,7 +16,7 @@ from taskforge.core.manager import TaskQuery
 from taskforge.storage.base import StorageBackend
 
 
-class JsonStorage(StorageBackend):
+class JSONStorage(StorageBackend):
     """JSON file-based storage implementation"""
     
     def __init__(self, data_directory: str = "./data"):
@@ -56,6 +56,11 @@ class JsonStorage(StorageBackend):
             async with aiofiles.open(self.tasks_file, 'r') as f:
                 tasks_data = json.loads(await f.read())
                 for task_data in tasks_data:
+                    # Convert list back to set for tags
+                    if 'tags' in task_data and isinstance(task_data['tags'], list):
+                        task_data['tags'] = set(task_data['tags'])
+                    if 'custom_permissions' in task_data and isinstance(task_data['custom_permissions'], list):
+                        task_data['custom_permissions'] = set(task_data['custom_permissions'])
                     task = Task(**task_data)
                     self._tasks_cache[task.id] = task
             
@@ -63,6 +68,11 @@ class JsonStorage(StorageBackend):
             async with aiofiles.open(self.projects_file, 'r') as f:
                 projects_data = json.loads(await f.read())
                 for project_data in projects_data:
+                    # Convert list back to set for tags and team_members
+                    if 'tags' in project_data and isinstance(project_data['tags'], list):
+                        project_data['tags'] = set(project_data['tags'])
+                    if 'team_members' in project_data and isinstance(project_data['team_members'], list):
+                        project_data['team_members'] = set(project_data['team_members'])
                     project = Project(**project_data)
                     self._projects_cache[project.id] = project
             
@@ -70,6 +80,11 @@ class JsonStorage(StorageBackend):
             async with aiofiles.open(self.users_file, 'r') as f:
                 users_data = json.loads(await f.read())
                 for user_data in users_data:
+                    # Convert list back to set for custom_permissions and teams
+                    if 'custom_permissions' in user_data and isinstance(user_data['custom_permissions'], list):
+                        user_data['custom_permissions'] = set(user_data['custom_permissions'])
+                    if 'teams' in user_data and isinstance(user_data['teams'], list):
+                        user_data['teams'] = set(user_data['teams'])
                     user = User(**user_data)
                     self._users_cache[user.id] = user
             
@@ -87,17 +102,39 @@ class JsonStorage(StorageBackend):
         """Save all cached data to files"""
         try:
             # Save tasks
-            tasks_data = [task.dict() for task in self._tasks_cache.values()]
+            tasks_data = []
+            for task in self._tasks_cache.values():
+                task_dict = task.model_dump()
+                # Convert sets to lists for JSON serialization
+                if 'tags' in task_dict and isinstance(task_dict['tags'], set):
+                    task_dict['tags'] = list(task_dict['tags'])
+                tasks_data.append(task_dict)
             async with aiofiles.open(self.tasks_file, 'w') as f:
                 await f.write(json.dumps(tasks_data, indent=2, default=str))
             
             # Save projects
-            projects_data = [project.dict() for project in self._projects_cache.values()]
+            projects_data = []
+            for project in self._projects_cache.values():
+                project_dict = project.model_dump()
+                # Convert sets to lists for JSON serialization
+                if 'tags' in project_dict and isinstance(project_dict['tags'], set):
+                    project_dict['tags'] = list(project_dict['tags'])
+                if 'team_members' in project_dict and isinstance(project_dict['team_members'], set):
+                    project_dict['team_members'] = list(project_dict['team_members'])
+                projects_data.append(project_dict)
             async with aiofiles.open(self.projects_file, 'w') as f:
                 await f.write(json.dumps(projects_data, indent=2, default=str))
             
             # Save users
-            users_data = [user.dict(exclude={'password_hash'}) for user in self._users_cache.values()]
+            users_data = []
+            for user in self._users_cache.values():
+                user_dict = user.model_dump(exclude={'password_hash'})
+                # Convert sets to lists for JSON serialization
+                if 'custom_permissions' in user_dict and isinstance(user_dict['custom_permissions'], set):
+                    user_dict['custom_permissions'] = list(user_dict['custom_permissions'])
+                if 'teams' in user_dict and isinstance(user_dict['teams'], set):
+                    user_dict['teams'] = list(user_dict['teams'])
+                users_data.append(user_dict)
             async with aiofiles.open(self.users_file, 'w') as f:
                 await f.write(json.dumps(users_data, indent=2, default=str))
                 
@@ -109,6 +146,9 @@ class JsonStorage(StorageBackend):
         """Create a new task"""
         if not self._cache_loaded:
             await self._load_cache()
+        
+        if task.id in self._tasks_cache:
+            raise ValueError(f"Task {task.id} already exists")
         
         self._tasks_cache[task.id] = task
         await self._save_all_data()
@@ -343,13 +383,13 @@ class JsonStorage(StorageBackend):
         # Priority distribution
         priority_dist = {}
         for task in tasks:
-            priority = task.priority.value
+            priority = task.priority.value if hasattr(task.priority, 'value') else task.priority
             priority_dist[priority] = priority_dist.get(priority, 0) + 1
         
         # Status distribution
         status_dist = {}
         for task in tasks:
-            status = task.status.value
+            status = task.status.value if hasattr(task.status, 'value') else task.status
             status_dist[status] = status_dist.get(status, 0) + 1
         
         return {
@@ -362,6 +402,52 @@ class JsonStorage(StorageBackend):
             'status_distribution': status_dist
         }
     
+    # Bulk operations
+    async def bulk_create_tasks(self, tasks: List[Task]) -> List[Task]:
+        """Create multiple tasks at once"""
+        if not self._cache_loaded:
+            await self._load_cache()
+        
+        created_tasks = []
+        for task in tasks:
+            if task.id in self._tasks_cache:
+                raise ValueError(f"Task {task.id} already exists")
+            self._tasks_cache[task.id] = task
+            created_tasks.append(task)
+        
+        await self._save_all_data()
+        return created_tasks
+    
+    async def bulk_update_tasks(self, tasks: List[Task]) -> List[Task]:
+        """Update multiple tasks at once"""
+        if not self._cache_loaded:
+            await self._load_cache()
+        
+        updated_tasks = []
+        for task in tasks:
+            if task.id not in self._tasks_cache:
+                raise ValueError(f"Task {task.id} not found")
+            task.updated_at = datetime.utcnow()
+            self._tasks_cache[task.id] = task
+            updated_tasks.append(task)
+        
+        await self._save_all_data()
+        return updated_tasks
+    
+    async def bulk_delete_tasks(self, task_ids: List[str]) -> int:
+        """Delete multiple tasks at once"""
+        if not self._cache_loaded:
+            await self._load_cache()
+        
+        deleted_count = 0
+        for task_id in task_ids:
+            if task_id in self._tasks_cache:
+                del self._tasks_cache[task_id]
+                deleted_count += 1
+        
+        await self._save_all_data()
+        return deleted_count
+
     # Data export/import
     async def export_data(self) -> Dict[str, Any]:
         """Export all data"""
@@ -369,8 +455,8 @@ class JsonStorage(StorageBackend):
             await self._load_cache()
         
         return {
-            'tasks': [task.dict() for task in self._tasks_cache.values()],
-            'projects': [project.dict() for project in self._projects_cache.values()],
+            'tasks': [task.model_dump() for task in self._tasks_cache.values()],
+            'projects': [project.model_dump() for project in self._projects_cache.values()],
             'users': [user.to_public_dict() for user in self._users_cache.values()],
             'version': '1.0.0',
             'exported_at': datetime.utcnow().isoformat()

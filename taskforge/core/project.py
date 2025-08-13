@@ -6,7 +6,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional, List, Dict, Any, Set
 from uuid import uuid4
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class ProjectStatus(str, Enum):
@@ -34,7 +34,7 @@ class Project(BaseModel):
     
     # Status and metadata
     status: ProjectStatus = ProjectStatus.PLANNING
-    color: Optional[str] = Field(None, regex=r'^#[0-9A-Fa-f]{6}$')  # Hex color
+    color: Optional[str] = Field(None, pattern=r'^#[0-9A-Fa-f]{6}$')  # Hex color
     icon: Optional[str] = None
     
     # Ownership and team
@@ -68,12 +68,13 @@ class Project(BaseModel):
     # Activity tracking
     activity_log: List[Dict[str, Any]] = Field(default_factory=list)
 
-    class Config:
-        use_enum_values = True
-        json_encoders = {
+    model_config = ConfigDict(
+        use_enum_values=True,
+        json_encoders={
             datetime: lambda v: v.isoformat(),
             set: list,
         }
+    )
 
     def add_member(self, user_id: str) -> None:
         """Add a team member to the project"""

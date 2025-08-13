@@ -6,7 +6,8 @@ import pytest
 from datetime import datetime, timedelta
 from unittest.mock import Mock, AsyncMock
 
-from taskforge.core.manager import TaskManager, TaskQuery
+from taskforge.core.manager import TaskManager
+from taskforge.core.queries import TaskQuery
 from taskforge.core.task import Task, TaskStatus, TaskPriority
 from taskforge.core.project import Project
 from taskforge.core.user import User, Permission
