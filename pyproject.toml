@@ -110,6 +110,7 @@ packages = ["taskforge"]
 
 [tool.setuptools_scm]
 write_to = "taskforge/_version.py"
+fallback_version = "1.0.0"
 
 [tool.black]
 line-length = 88

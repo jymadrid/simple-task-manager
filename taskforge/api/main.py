@@ -13,8 +13,14 @@ app = FastAPI(
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize the database on startup."""
-    await storage.initialize()
+    """Initialize storage on startup"""
+    from .dependencies import get_storage
+    await get_storage()
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {"status": "healthy", "service": "taskforge-api"}
 
 
 @app.get("/", tags=["Health"])

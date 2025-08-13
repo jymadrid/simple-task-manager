@@ -1,85 +1,41 @@
-# Multi-stage Dockerfile for TaskForge
-# Build: docker build -t taskforge .
-# Run: docker run -p 8000:8000 taskforge
-
-# Build stage
-FROM python:3.11-slim as builder
+# Simple Dockerfile for TaskForge
+FROM python:3.11-slim
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PYTHONDONTWRITEBYTECODE=1
+
+# Set work directory
+WORKDIR /app
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
-    build-essential \
     curl \
-    git \
     && rm -rf /var/lib/apt/lists/*
 
-# Create app directory
-WORKDIR /app
-
-# Copy dependency files
+# Copy project files
 COPY pyproject.toml README.md ./
 COPY taskforge/ taskforge/
 
+# Create version file
+RUN echo '__version__ = "1.0.0"' > taskforge/_version.py
+
 # Install Python dependencies
-RUN pip install --upgrade pip setuptools wheel && \
-    pip install -e ".[all]" && \
-    pip install gunicorn uvicorn[standard]
+RUN pip install --upgrade pip && \
+    pip install -e ".[dev]"
 
-# Production stage
-FROM python:3.11-slim as production
-
-# Set environment variables
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    TASKFORGE_HOST=0.0.0.0 \
-    TASKFORGE_PORT=8000 \
-    TASKFORGE_WORKERS=4
-
-# Install system dependencies for runtime
-RUN apt-get update && apt-get install -y \
-    curl \
-    postgresql-client \
-    && rm -rf /var/lib/apt/lists/* \
-    && groupadd -r taskforge \
-    && useradd -r -g taskforge -s /bin/bash -c "TaskForge user" taskforge
-
-# Copy application from builder
-COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
-COPY --from=builder /app /app
-
-# Create necessary directories and set permissions
-RUN mkdir -p /app/data /app/logs /app/static && \
+# Create non-root user
+RUN useradd -m -u 1000 taskforge && \
     chown -R taskforge:taskforge /app
 
-# Switch to non-root user
 USER taskforge
-WORKDIR /app
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:${TASKFORGE_PORT}/health || exit 1
+    CMD curl -f http://localhost:8000/health || exit 1
 
 # Expose port
-EXPOSE ${TASKFORGE_PORT}
+EXPOSE 8000
 
-# Default command
-CMD ["gunicorn", "taskforge.api:app", \
-     "--bind", "0.0.0.0:8000", \
-     "--workers", "4", \
-     "--worker-class", "uvicorn.workers.UvicornWorker", \
-     "--access-logfile", "-", \
-     "--error-logfile", "-", \
-     "--log-level", "info"]
-
-# Labels for better container management
-LABEL org.opencontainers.image.title="TaskForge"
-LABEL org.opencontainers.image.description="A comprehensive task management platform"
-LABEL org.opencontainers.image.source="https://github.com/taskforge-community/taskforge"
-LABEL org.opencontainers.image.licenses="MIT"
-LABEL org.opencontainers.image.vendor="TaskForge Community"
+# Run the application
+CMD ["python", "-m", "uvicorn", "taskforge.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
