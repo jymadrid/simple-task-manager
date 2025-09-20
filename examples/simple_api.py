@@ -82,13 +82,39 @@ class StatsResponse(BaseModel):
     status_distribution: dict
 
 
-# Initialize FastAPI app
+# Initialize FastAPI app with Apple-inspired styling
 app = FastAPI(
-    title="TaskForge Simple API",
-    description="A simple REST API built with TaskForge library for task management",
+    title="⚡ TaskForge API",
+    description="""
+    ## Beautiful Task Management API
+
+    A modern, fast, and elegant REST API built with TaskForge library for task management.
+
+    ### Features
+    - 🚀 **Lightning Fast** - Built with FastAPI for maximum performance
+    - 🎨 **Beautiful Design** - Apple-inspired interface and responses
+    - 📊 **Rich Analytics** - Comprehensive task statistics and insights
+    - 🔒 **Production Ready** - Full validation, error handling, and CORS support
+
+    ### Quick Start
+    1. Create tasks with `POST /tasks`
+    2. List all tasks with `GET /tasks`
+    3. View analytics with `GET /stats`
+    4. Try the demo data with `POST /demo`
+
+    Built with ❤️ using TaskForge
+    """,
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
+    contact={
+        "name": "TaskForge Team",
+        "url": "https://github.com/taskforge-community/taskforge",
+    },
+    license_info={
+        "name": "MIT",
+        "url": "https://opensource.org/licenses/MIT",
+    },
 )
 
 # Add CORS middleware
@@ -133,19 +159,32 @@ async def startup_event():
     await get_storage()
 
 
-@app.get("/", tags=["Root"])
+@app.get("/", tags=["🏠 Home"])
 async def root():
-    """Welcome message and API information"""
+    """Welcome to TaskForge API! 🎉"""
     return {
-        "message": "Welcome to TaskForge Simple API!",
+        "message": "⚡ Welcome to TaskForge API!",
+        "tagline": "Beautifully designed task management",
         "version": "1.0.0",
-        "docs": "/docs",
-        "redoc": "/redoc",
-        "endpoints": {"tasks": "/tasks", "statistics": "/stats"},
+        "documentation": {
+            "interactive": "/docs",
+            "alternative": "/redoc"
+        },
+        "endpoints": {
+            "tasks": "/tasks",
+            "statistics": "/stats",
+            "demo_data": "/demo"
+        },
+        "features": [
+            "🚀 Lightning fast performance",
+            "🎨 Apple-inspired design",
+            "📊 Rich analytics",
+            "🔒 Production ready"
+        ]
     }
 
 
-@app.get("/tasks", response_model=List[TaskResponse], tags=["Tasks"])
+@app.get("/tasks", response_model=List[TaskResponse], tags=["📋 Tasks"])
 async def list_tasks(
     status: Optional[TaskStatus] = Query(None, description="Filter by task status"),
     priority: Optional[TaskPriority] = Query(
@@ -181,7 +220,7 @@ async def list_tasks(
     "/tasks",
     response_model=TaskResponse,
     status_code=status.HTTP_201_CREATED,
-    tags=["Tasks"],
+    tags=["📋 Tasks"],
 )
 async def create_task(task_data: TaskCreate):
     """
@@ -207,7 +246,7 @@ async def create_task(task_data: TaskCreate):
     return TaskResponse.from_orm(created_task)
 
 
-@app.get("/tasks/{task_id}", response_model=TaskResponse, tags=["Tasks"])
+@app.get("/tasks/{task_id}", response_model=TaskResponse, tags=["📋 Tasks"])
 async def get_task(task_id: str):
     """
     Get a specific task by ID.
@@ -226,7 +265,7 @@ async def get_task(task_id: str):
     return TaskResponse.from_orm(task)
 
 
-@app.put("/tasks/{task_id}", response_model=TaskResponse, tags=["Tasks"])
+@app.put("/tasks/{task_id}", response_model=TaskResponse, tags=["📋 Tasks"])
 async def update_task(task_id: str, task_data: TaskUpdate):
     """
     Update a specific task.
@@ -263,7 +302,7 @@ async def update_task(task_id: str, task_data: TaskUpdate):
     return TaskResponse.from_orm(updated_task)
 
 
-@app.delete("/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Tasks"])
+@app.delete("/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["📋 Tasks"])
 async def delete_task(task_id: str):
     """
     Delete a specific task.
@@ -287,7 +326,7 @@ async def delete_task(task_id: str):
         )
 
 
-@app.post("/tasks/{task_id}/complete", response_model=TaskResponse, tags=["Tasks"])
+@app.post("/tasks/{task_id}/complete", response_model=TaskResponse, tags=["📋 Tasks"])
 async def complete_task(task_id: str):
     """
     Mark a task as completed.
@@ -313,7 +352,7 @@ async def complete_task(task_id: str):
     return TaskResponse.from_orm(updated_task)
 
 
-@app.get("/stats", response_model=StatsResponse, tags=["Statistics"])
+@app.get("/stats", response_model=StatsResponse, tags=["📊 Analytics"])
 async def get_statistics():
     """
     Get task statistics including counts, completion rates, and distributions.
@@ -324,7 +363,7 @@ async def get_statistics():
     return StatsResponse(**stats)
 
 
-@app.post("/demo", tags=["Demo"])
+@app.post("/demo", tags=["🎭 Demo"])
 async def create_demo_data():
     """
     Create demo tasks for testing the API.
@@ -372,16 +411,24 @@ async def create_demo_data():
         created_tasks.append(TaskResponse.from_orm(created_task))
 
     return {
-        "message": f"Created {len(created_tasks)} demo tasks",
+        "message": f"✨ Created {len(created_tasks)} beautiful demo tasks!",
+        "summary": f"🎉 Your TaskForge workspace now has {len(created_tasks)} sample tasks to explore",
         "tasks": created_tasks,
+        "next_steps": [
+            "📋 View all tasks: GET /tasks",
+            "📊 Check analytics: GET /stats",
+            "✅ Complete a task: POST /tasks/{task_id}/complete"
+        ]
     }
 
 
 if __name__ == "__main__":
-    print("🚀 Starting TaskForge Simple API...")
-    print("📖 API Documentation: http://localhost:8000/docs")
+    print("⚡ Starting TaskForge API...")
+    print("🎨 Apple-inspired design • Lightning fast performance")
+    print("📖 Interactive Docs: http://localhost:8000/docs")
     print("📚 Alternative Docs: http://localhost:8000/redoc")
-    print("🔗 API Root: http://localhost:8000/")
+    print("🏠 API Root: http://localhost:8000/")
+    print("✨ Ready to create beautiful tasks!")
 
     uvicorn.run(
         "simple_api:app", host="0.0.0.0", port=8000, reload=True, log_level="info"

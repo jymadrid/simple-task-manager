@@ -23,6 +23,8 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
+from rich.theme import Theme
+from rich.text import Text
 
 # Add the parent directory to the path so we can import taskforge
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -32,7 +34,19 @@ from taskforge.core.task import Task, TaskPriority, TaskStatus
 from taskforge.core.user import User
 from taskforge.storage.json_storage import JSONStorage
 
-console = Console()
+# Apple-inspired theme for Rich
+apple_theme = Theme({
+    "primary": "#007AFF",      # SF Blue
+    "success": "#34C759",      # SF Green
+    "warning": "#FF9500",      # SF Orange
+    "error": "#FF3B30",        # SF Red
+    "secondary": "#5856D6",    # SF Purple
+    "muted": "#8E8E93",        # SF Gray
+    "accent": "#AF52DE",       # SF Purple variant
+    "info": "#00C7BE",         # SF Teal
+})
+
+console = Console(theme=apple_theme)
 
 
 class SimpleTaskManager:
@@ -57,7 +71,7 @@ class SimpleTaskManager:
             )
             default_user.id = self.current_user_id
             await self.storage.create_user(default_user)
-            console.print("✅ Created default user", style="green")
+            console.print("✅ Created default user", style="success")
 
     async def add_task(
         self, title: str, description: str = "", priority: str = "medium"
@@ -151,13 +165,14 @@ def add(title: str, description: str, priority: str):
 
         console.print(
             Panel(
-                f"Task created successfully!\n\n"
-                f"[bold]ID:[/bold] {created_task.id[:8]}...\n"
-                f"[bold]Title:[/bold] {created_task.title}\n"
-                f"[bold]Priority:[/bold] {created_task.priority.value}\n"
-                f"[bold]Status:[/bold] {created_task.status.value}",
-                title="New Task",
-                border_style="green",
+                f"✨ Task created successfully!\n\n"
+                f"[bold primary]ID:[/bold primary] {created_task.id[:8]}...\n"
+                f"[bold primary]Title:[/bold primary] {created_task.title}\n"
+                f"[bold primary]Priority:[/bold primary] {created_task.priority.value}\n"
+                f"[bold primary]Status:[/bold primary] {created_task.status.value}",
+                title="[bold accent]⚡ New Task[/bold accent]",
+                border_style="primary",
+                padding=(1, 2),
             )
         )
 
@@ -184,54 +199,70 @@ def list(status: Optional[str], limit: int):
 
         if not tasks:
             console.print(
-                "📝 No tasks found. Use 'add' command to create your first task!",
-                style="yellow",
+                "📝 No tasks found. Use [primary]add[/primary] command to create your first task!",
+                style="muted",
             )
             return
 
-        # Create a rich table
-        table = Table(title=f"📋 Your Tasks ({len(tasks)} total)")
-        table.add_column("ID", style="cyan", width=10)
-        table.add_column("Title", style="white", width=40)
-        table.add_column("Status", style="magenta", width=12)
-        table.add_column("Priority", style="yellow", width=10)
-        table.add_column("Created", style="green", width=12)
+        # Create a beautiful Apple-style table
+        table = Table(
+            title=f"[bold accent]📋 Your Tasks[/bold accent] [muted]({len(tasks)} total)[/muted]",
+            title_style="bold",
+            show_header=True,
+            header_style="bold primary",
+            border_style="primary",
+            box=None,
+            pad_edge=False,
+        )
+        table.add_column("ID", style="muted", width=10, no_wrap=True)
+        table.add_column("Title", style="bold", min_width=30, max_width=50)
+        table.add_column("Status", style="", width=12, justify="center")
+        table.add_column("Priority", style="", width=10, justify="center")
+        table.add_column("Created", style="muted", width=12, justify="right")
 
         for task in tasks[:limit]:
             # Format creation date
             created_date = task.created_at.strftime("%m/%d %H:%M")
 
-            # Color code status
-            status_color = {
-                "todo": "red",
-                "in_progress": "yellow",
-                "done": "green",
-                "blocked": "red",
-                "cancelled": "dim",
-            }.get(task.status.value, "white")
+            # Apple-inspired status styling
+            status_styles = {
+                "todo": "[warning]●[/warning] [warning]To Do[/warning]",
+                "in_progress": "[info]●[/info] [info]In Progress[/info]",
+                "done": "[success]●[/success] [success]Done[/success]",
+                "blocked": "[error]●[/error] [error]Blocked[/error]",
+                "cancelled": "[muted]●[/muted] [muted]Cancelled[/muted]",
+            }
 
-            # Color code priority
-            priority_color = {
-                "critical": "red bold",
-                "high": "red",
-                "medium": "yellow",
-                "low": "green",
-            }.get(task.priority.value, "white")
+            # Apple-inspired priority styling
+            priority_styles = {
+                "critical": "[error]!![/error] [error]Critical[/error]",
+                "high": "[warning]![/warning] [warning]High[/warning]",
+                "medium": "[secondary]—[/secondary] [secondary]Medium[/secondary]",
+                "low": "[success]—[/success] [success]Low[/success]",
+            }
+
+            status_display = status_styles.get(task.status.value, task.status.value)
+            priority_display = priority_styles.get(task.priority.value, task.priority.value)
+
+            # Truncate long titles with elegant ellipsis
+            title_display = task.title
+            if len(title_display) > 47:
+                title_display = title_display[:44] + "..."
 
             table.add_row(
-                task.id[:8] + "...",
-                task.title[:37] + "..." if len(task.title) > 40 else task.title,
-                f"[{status_color}]{task.status.value}[/{status_color}]",
-                f"[{priority_color}]{task.priority.value}[/{priority_color}]",
-                created_date,
+                f"[muted]{task.id[:8]}[/muted]",
+                title_display,
+                status_display,
+                priority_display,
+                f"[muted]{created_date}[/muted]",
             )
 
         console.print(table)
 
         if len(tasks) > limit:
             console.print(
-                f"\n💡 Showing {limit} of {len(tasks)} tasks. Use --limit to see more.",
-                style="dim",
+                f"\n💡 Showing [primary]{limit}[/primary] of [primary]{len(tasks)}[/primary] tasks. Use [primary]--limit[/primary] to see more.",
+                style="muted",
             )
 
     asyncio.run(_list())
@@ -254,12 +285,12 @@ def complete(task_id: str):
                 break
 
         if not matching_task:
-            console.print(f"❌ Task with ID '{task_id}' not found", style="red")
+            console.print(f"❌ Task with ID '[primary]{task_id}[/primary]' not found", style="error")
             return
 
         if matching_task.status == TaskStatus.DONE:
             console.print(
-                f"ℹ️  Task '{matching_task.title}' is already completed", style="yellow"
+                f"ℹ️  Task '[accent]{matching_task.title}[/accent]' is already completed", style="warning"
             )
             return
 
@@ -275,11 +306,12 @@ def complete(task_id: str):
         console.print(
             Panel(
                 f"🎉 Task completed!\n\n"
-                f"[bold]Title:[/bold] {updated_task.title}\n"
-                f"[bold]Status:[/bold] {updated_task.status.value}\n"
-                f"[bold]Completed:[/bold] {updated_task.completed_at.strftime('%Y-%m-%d %H:%M')}",
-                title="Task Completed",
-                border_style="green",
+                f"[bold primary]Title:[/bold primary] {updated_task.title}\n"
+                f"[bold primary]Status:[/bold primary] [success]{updated_task.status.value}[/success]\n"
+                f"[bold primary]Completed:[/bold primary] {updated_task.completed_at.strftime('%Y-%m-%d %H:%M')}",
+                title="[bold success]✅ Task Completed[/bold success]",
+                border_style="success",
+                padding=(1, 2),
             )
         )
 
@@ -304,7 +336,7 @@ def delete(task_id: str):
                 break
 
         if not matching_task:
-            console.print(f"❌ Task with ID '{task_id}' not found", style="red")
+            console.print(f"❌ Task with ID '[primary]{task_id}[/primary]' not found", style="error")
             return
 
         with Progress(
@@ -318,10 +350,10 @@ def delete(task_id: str):
 
         if deleted:
             console.print(
-                f"🗑️  Task '{matching_task.title}' deleted successfully", style="green"
+                f"🗑️  Task '[accent]{matching_task.title}[/accent]' deleted successfully", style="success"
             )
         else:
-            console.print(f"❌ Failed to delete task", style="red")
+            console.print(f"❌ Failed to delete task", style="error")
 
     asyncio.run(_delete())
 
@@ -342,25 +374,61 @@ def stats():
             stats = await manager.get_statistics()
             progress.update(task, description="Statistics ready!")
 
-        # Create statistics panel
-        stats_text = f"""
-[bold]Total Tasks:[/bold] {stats['total_tasks']}
-[bold]Completed:[/bold] {stats['completed_tasks']} ({stats['completion_rate']:.1%})
-[bold]In Progress:[/bold] {stats['in_progress_tasks']}
-[bold]Overdue:[/bold] {stats['overdue_tasks']}
+        # Create beautiful Apple-style statistics panel
+        stats_content = []
 
-[bold]Priority Distribution:[/bold]
-"""
+        # Main stats with visual elements
+        stats_content.append(f"[bold primary]📊 Overview[/bold primary]")
+        stats_content.append(f"Total Tasks: [bold]{stats['total_tasks']}[/bold]")
+        stats_content.append(f"Completed: [success]{stats['completed_tasks']}[/success] ([success]{stats['completion_rate']:.1%}[/success])")
+        stats_content.append(f"In Progress: [info]{stats['in_progress_tasks']}[/info]")
+        stats_content.append(f"Overdue: [error]{stats['overdue_tasks']}[/error]")
+        stats_content.append("")
 
+        # Priority distribution with visual bars
+        stats_content.append(f"[bold secondary]🎯 Priority Distribution[/bold secondary]")
         for priority, count in stats["priority_distribution"].items():
-            stats_text += f"  • {priority.title()}: {count}\n"
+            # Create simple visual bar
+            bar_length = min(count, 20)  # Max 20 chars
+            bar = "█" * bar_length
 
-        stats_text += "\n[bold]Status Distribution:[/bold]\n"
+            priority_styles = {
+                "critical": f"[error]{bar}[/error]",
+                "high": f"[warning]{bar}[/warning]",
+                "medium": f"[secondary]{bar}[/secondary]",
+                "low": f"[success]{bar}[/success]",
+            }
+
+            visual_bar = priority_styles.get(priority, bar)
+            stats_content.append(f"  {priority.title()}: {visual_bar} [muted]({count})[/muted]")
+
+        stats_content.append("")
+
+        # Status distribution
+        stats_content.append(f"[bold accent]🔄 Status Distribution[/bold accent]")
         for status, count in stats["status_distribution"].items():
-            stats_text += f"  • {status.replace('_', ' ').title()}: {count}\n"
+            bar_length = min(count, 20)
+            bar = "●" * bar_length
+
+            status_styles = {
+                "todo": f"[warning]{bar}[/warning]",
+                "in_progress": f"[info]{bar}[/info]",
+                "done": f"[success]{bar}[/success]",
+                "blocked": f"[error]{bar}[/error]",
+                "cancelled": f"[muted]{bar}[/muted]",
+            }
+
+            visual_bar = status_styles.get(status, bar)
+            display_status = status.replace('_', ' ').title()
+            stats_content.append(f"  {display_status}: {visual_bar} [muted]({count})[/muted]")
 
         console.print(
-            Panel(stats_text.strip(), title="📊 Task Statistics", border_style="blue")
+            Panel(
+                "\n".join(stats_content),
+                title="[bold primary]📈 Task Analytics[/bold primary]",
+                border_style="primary",
+                padding=(1, 2),
+            )
         )
 
     asyncio.run(_stats())
@@ -393,17 +461,17 @@ def demo():
             ),
         ]
 
-        console.print("🎭 Creating demo tasks...", style="blue")
+        console.print("🎭 Creating demo tasks...", style="primary")
 
         with Progress(console=console) as progress:
-            task = progress.add_task("Creating demo tasks...", total=len(demo_tasks))
+            task = progress.add_task("[primary]Creating demo tasks...", total=len(demo_tasks))
 
             for title, description, priority in demo_tasks:
                 await manager.add_task(title, description, priority)
                 progress.advance(task)
 
         console.print(
-            "✅ Demo tasks created! Use 'list' command to see them.", style="green"
+            "✅ Demo tasks created! Use '[primary]list[/primary]' command to see them.", style="success"
         )
 
     asyncio.run(_demo())
