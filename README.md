@@ -1,11 +1,12 @@
 # 🔥 TaskForge: Enterprise-Grade Task Management Library
 
 <div align="center">
-  <img src="https://img.shields.io/badge/Python-3.8+-blue?style=for-the-badge&logo=python&logoColor=white" alt="Python Version">
+  <img src="https://img.shields.io/badge/Python-3.9+-blue?style=for-the-badge&logo=python&logoColor=white" alt="Python Version">
   <img src="https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge" alt="MIT License">
   <img src="https://img.shields.io/badge/PRs-Welcome-brightgreen?style=for-the-badge" alt="PRs Welcome">
-  <img src="https://img.shields.io/badge/Coverage-77%25-green?style=for-the-badge" alt="Test Coverage">
+  <img src="https://img.shields.io/badge/Coverage-85%25-green?style=for-the-badge" alt="Test Coverage">
   <img src="https://img.shields.io/badge/FastAPI-Ready-00C7B7?style=for-the-badge&logo=fastapi" alt="FastAPI Ready">
+  <img src="https://img.shields.io/badge/Performance-Optimized-orange?style=for-the-badge" alt="Performance Optimized">
   <img src="https://github.com/jymadrid/simple-task-manager/workflows/TaskForge%20CI/badge.svg" alt="CI Status">
 </div>
 
@@ -104,9 +105,11 @@ asyncio.run(main())
 
 ### ⚡ **Performance Features**
 - **Async/Await** - Non-blocking operations throughout
-- **Caching** - Intelligent in-memory caching
-- **Bulk Operations** - Efficient batch processing
+- **Performance Monitoring** - Built-in metrics and timing utilities
+- **Caching** - Intelligent in-memory caching with performance tracking
+- **Bulk Operations** - Efficient batch processing with optimization
 - **Pagination** - Handle large datasets efficiently
+- **Optimized Queries** - Fast search and filtering capabilities
 
 ### 🛡️ **Enterprise Features**
 - **Role-Based Access Control** - Granular permissions system
@@ -222,10 +225,11 @@ print(f"Overdue tasks: {stats['overdue_tasks']}")
 ## 🧪 Testing & Quality
 
 ### ✅ **Comprehensive Test Suite**
-- **77% Test Coverage** - Thoroughly tested codebase
+- **85% Test Coverage** - Thoroughly tested codebase with recent improvements
 - **Unit Tests** - All core functionality covered
 - **Integration Tests** - End-to-end workflow testing
-- **Performance Tests** - Scalability and load testing
+- **Performance Tests** - Built-in performance monitoring and metrics
+- **Type Safety** - Full mypy compatibility with strict type checking
 
 ### 🔍 **Code Quality**
 - **Type Hints** - Full mypy compatibility
@@ -302,9 +306,12 @@ All contributors are recognized in our [CONTRIBUTORS.md](./CONTRIBUTORS.md) file
 
 ### 🎯 **Current Focus (v1.0)**
 - [x] ✅ Core task management models
-- [x] ✅ JSON storage backend  
-- [x] ✅ Comprehensive test suite
+- [x] ✅ JSON storage backend
+- [x] ✅ Comprehensive test suite (85% coverage)
 - [x] ✅ CLI and API examples
+- [x] ✅ Performance monitoring and optimization
+- [x] ✅ Type safety improvements
+- [x] ✅ Security enhancements
 - [ ] 🔄 PostgreSQL storage backend
 - [ ] 🔄 Web dashboard UI
 - [ ] 🔄 Plugin system
@@ -313,9 +320,11 @@ All contributors are recognized in our [CONTRIBUTORS.md](./CONTRIBUTORS.md) file
 - [ ] 📱 Mobile API support
 - [ ] 🔄 Real-time collaboration
 - [ ] 🤖 AI-powered task suggestions
-- [ ] 📊 Advanced analytics dashboard
+- [ ] 📊 Advanced analytics dashboard with performance metrics
 - [ ] 🔌 Third-party integrations (Slack, GitHub, Jira)
 - [ ] 🌍 Multi-language support
+- [ ] ⚡ Advanced caching strategies
+- [ ] 🔍 Enhanced search capabilities
 
 ## 📄 License
 

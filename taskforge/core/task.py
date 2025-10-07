@@ -3,7 +3,7 @@ Core task model with advanced features
 """
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional, List, Dict, Any, Set
 from uuid import uuid4
@@ -54,7 +54,7 @@ class TimeTracking:
     actual_hours: float = 0.0
     time_entries: List[Dict[str, Any]] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.time_entries is None:
             self.time_entries = []
 
@@ -105,7 +105,7 @@ class Task(BaseModel):
     project_id: Optional[str] = None
 
     # Temporal fields
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: Optional[datetime] = None
     due_date: Optional[datetime] = None
     start_date: Optional[datetime] = None
@@ -151,12 +151,12 @@ class Task(BaseModel):
 
     @field_validator("updated_at", mode="before")
     @classmethod
-    def set_updated_at(cls, v):
-        return datetime.utcnow()
+    def set_updated_at(cls, v: Optional[datetime]) -> datetime:
+        return datetime.now(timezone.utc)
 
     @field_validator("progress")
     @classmethod
-    def validate_progress(cls, v):
+    def validate_progress(cls, v: int) -> int:
         if not 0 <= v <= 100:
             raise ValueError("Progress must be between 0 and 100")
         return v
@@ -192,7 +192,7 @@ class Task(BaseModel):
         self.status = new_status
 
         if new_status == TaskStatus.DONE:
-            self.completed_at = datetime.utcnow()
+            self.completed_at = datetime.now(timezone.utc)
             self.progress = 100
         elif old_status == TaskStatus.DONE:
             self.completed_at = None
@@ -233,7 +233,7 @@ class Task(BaseModel):
             "hours": hours,
             "description": description,
             "user_id": user_id,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
         self.time_tracking.time_entries.append(entry)
         self.time_tracking.actual_hours += hours
@@ -243,7 +243,7 @@ class Task(BaseModel):
         """Check if task is overdue"""
         if not self.due_date or self.status in [TaskStatus.DONE, TaskStatus.CANCELLED]:
             return False
-        return datetime.utcnow() > self.due_date
+        return datetime.now(timezone.utc) > self.due_date
 
     def days_until_due(self) -> Optional[int]:
         """Get days until due date"""
@@ -260,7 +260,7 @@ class Task(BaseModel):
         """Log activity for audit trail"""
         entry = {
             "action": action,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "data": data,
         }
         self.activity_log.append(entry)

@@ -4,7 +4,7 @@ JSON file-based storage backend
 
 import asyncio
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -15,6 +15,7 @@ from taskforge.core.project import Project
 from taskforge.core.task import Task, TaskStatus
 from taskforge.core.user import User
 from taskforge.storage.base import StorageBackend
+from taskforge.utils.performance import time_function, async_timer
 
 
 class JSONStorage(StorageBackend):
@@ -34,17 +35,18 @@ class JSONStorage(StorageBackend):
 
     async def initialize(self) -> None:
         """Initialize the storage backend"""
-        # Create data directory if it doesn't exist
-        self.data_dir.mkdir(parents=True, exist_ok=True)
+        async with async_timer("json_storage.initialize"):
+            # Create data directory if it doesn't exist
+            self.data_dir.mkdir(parents=True, exist_ok=True)
 
-        # Create empty files if they don't exist
-        for file_path in [self.tasks_file, self.projects_file, self.users_file]:
-            if not file_path.exists():
-                async with aiofiles.open(file_path, "w") as f:
-                    await f.write("[]")
+            # Create empty files if they don't exist
+            for file_path in [self.tasks_file, self.projects_file, self.users_file]:
+                if not file_path.exists():
+                    async with aiofiles.open(file_path, "w") as f:
+                        await f.write("[]")
 
-        # Load data into cache
-        await self._load_cache()
+            # Load data into cache
+            await self._load_cache()
 
     async def cleanup(self) -> None:
         """Cleanup and save data"""
@@ -161,6 +163,7 @@ class JSONStorage(StorageBackend):
             print(f"Error saving data: {e}")
 
     # Task operations
+    @time_function
     async def create_task(self, task: Task) -> Task:
         """Create a new task"""
         if not self._cache_loaded:
@@ -188,7 +191,7 @@ class JSONStorage(StorageBackend):
         if task.id not in self._tasks_cache:
             raise ValueError(f"Task {task.id} not found")
 
-        task.updated_at = datetime.utcnow()
+        task.updated_at = datetime.now(timezone.utc)
         self._tasks_cache[task.id] = task
         await self._save_all_data()
         return task
@@ -281,7 +284,7 @@ class JSONStorage(StorageBackend):
         if project.id not in self._projects_cache:
             raise ValueError(f"Project {project.id} not found")
 
-        project.updated_at = datetime.utcnow()
+        project.updated_at = datetime.now(timezone.utc)
         self._projects_cache[project.id] = project
         await self._save_all_data()
         return project
@@ -361,7 +364,7 @@ class JSONStorage(StorageBackend):
         if user.id not in self._users_cache:
             raise ValueError(f"User {user.id} not found")
 
-        user.updated_at = datetime.utcnow()
+        user.updated_at = datetime.now(timezone.utc)
         self._users_cache[user.id] = user
         await self._save_all_data()
         return user
@@ -456,7 +459,7 @@ class JSONStorage(StorageBackend):
         for task in tasks:
             if task.id not in self._tasks_cache:
                 raise ValueError(f"Task {task.id} not found")
-            task.updated_at = datetime.utcnow()
+            task.updated_at = datetime.now(timezone.utc)
             self._tasks_cache[task.id] = task
             updated_tasks.append(task)
 
@@ -490,5 +493,5 @@ class JSONStorage(StorageBackend):
             ],
             "users": [user.to_public_dict() for user in self._users_cache.values()],
             "version": "1.0.0",
-            "exported_at": datetime.utcnow().isoformat(),
+            "exported_at": datetime.now(timezone.utc).isoformat(),
         }
