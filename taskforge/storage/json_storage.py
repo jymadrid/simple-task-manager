@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional
 
 import aiofiles
 
-from taskforge.core.manager import TaskQuery
+from taskforge.core.queries import TaskQuery
 from taskforge.core.project import Project
 from taskforge.core.task import Task, TaskStatus
 from taskforge.core.user import User
@@ -50,6 +50,10 @@ class JSONStorage(StorageBackend):
 
     async def cleanup(self) -> None:
         """Cleanup and save data"""
+        # Cancel any pending save task
+        if self._pending_save_task and not self._pending_save_task.done():
+            self._pending_save_task.cancel()
+        # Force immediate save on cleanup
         await self._save_all_data()
 
     async def _load_cache(self) -> None:
@@ -459,25 +463,34 @@ class JSONStorage(StorageBackend):
         for task in tasks:
             if task.id not in self._tasks_cache:
                 raise ValueError(f"Task {task.id} not found")
+            # Remove old task from indexes
+            old_task = self._tasks_cache[task.id]
+            self._remove_task_from_indexes(old_task)
+            # Update task
             task.updated_at = datetime.now(timezone.utc)
             self._tasks_cache[task.id] = task
+            self._update_task_indexes(task)
             updated_tasks.append(task)
 
-        await self._save_all_data()
+        self._tasks_dirty = True
+        await self._schedule_save()
         return updated_tasks
 
     async def bulk_delete_tasks(self, task_ids: List[str]) -> int:
-        """Delete multiple tasks at once"""
+        """Delete multiple tasks at once (optimized batch operation)"""
         if not self._cache_loaded:
             await self._load_cache()
 
         deleted_count = 0
         for task_id in task_ids:
             if task_id in self._tasks_cache:
+                task = self._tasks_cache[task_id]
+                self._remove_task_from_indexes(task)
                 del self._tasks_cache[task_id]
                 deleted_count += 1
 
-        await self._save_all_data()
+        self._tasks_dirty = True
+        await self._schedule_save()
         return deleted_count
 
     # Data export/import

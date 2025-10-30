@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add README.md)",
+      "Bash(git commit -m \"$(cat <<''EOF''\ndocs: add bilingual (Chinese/English) README with language switcher\n\n- Added language selection at the top of README (简体中文/English)\n- Implemented anchor-based language switching\n- Maintained all original content in English version\n- Added complete Chinese translation\n- Enhanced user experience with easy language toggle\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git push origin main)",
+      "Bash(dir /b)",
+      "Bash(python -m pytest tests/ -v --tb=short)",
+      "Bash(python -m pytest tests/unit/test_storage.py -v -k \"test_task_crud\" --tb=short)",
+      "Bash(python benchmarks/performance_test.py)",
+      "Bash(git add .)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
