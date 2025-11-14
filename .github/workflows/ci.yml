@@ -39,20 +39,20 @@ jobs:
         
     - name: Run code formatting check with black
       run: |
-        black --check --diff taskforge/ tests/ || echo "Black formatting issues found but continuing..."
+        black --check --diff taskforge/ tests/
         
     - name: Run import sorting check with isort
       run: |
-        isort --check-only --diff taskforge/ tests/ || echo "Import sorting issues found but continuing..."
+        isort --check-only --diff taskforge/ tests/
         
     - name: Run linting with flake8
       run: |
-        flake8 taskforge/ tests/ --max-line-length=88 --extend-ignore=E203,W503 --exclude=taskforge/_version.py || echo "Linting issues found but continuing..."
+        flake8 taskforge/ tests/ --max-line-length=88 --extend-ignore=E203,W503 --exclude=taskforge/_version.py
         
     - name: Run basic security check
       run: |
         pip install bandit
-        bandit -r taskforge/ -ll || echo "Security scan completed with warnings"
+        bandit -r taskforge/ -ll
 
   # Unit Tests
   test:
@@ -86,12 +86,12 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -e ".[dev]" || echo "Installation completed with warnings"
+        pip install -e ".[dev]"
         
     - name: Run tests
       run: |
-        # Run only the storage tests that we know work
-        pytest tests/unit/test_storage.py -v --tb=short || echo "Some tests failed but continuing..."
+        # Run complete test suite with coverage enforcement
+        pytest --cov=taskforge --cov-report=xml --cov-fail-under=80
         
     - name: Run basic functionality test
       run: |
@@ -139,11 +139,11 @@ jobs:
         
     - name: Build package
       run: |
-        python -m build || echo "Build completed with warnings"
+        python -m build
         
     - name: Check package
       run: |
-        python -m twine check dist/* || echo "Package check completed with warnings"
+        python -m twine check dist/*
         
     - name: Upload build artifacts
       uses: actions/upload-artifact@v3
@@ -170,7 +170,7 @@ jobs:
       
     - name: Build Docker image
       run: |
-        docker build -t taskforge:test . || echo "Docker build completed with warnings"
+        docker build -t taskforge:test .
         
     - name: Test Docker image basic functionality
       run: |
@@ -197,7 +197,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -e ".[dev]" || echo "Installation completed with warnings"
+        pip install -e ".[dev]"
         
     - name: Generate documentation
       run: |

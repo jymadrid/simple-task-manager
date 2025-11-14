@@ -1,0 +1,166 @@
+site_name: TaskForge Documentation
+site_url: https://docs.taskforge.dev/
+site_description: Comprehensive documentation for TaskForge, a modern task management platform for developers and teams
+site_author: TaskForge Community
+
+# Repository
+repo_url: https://github.com/taskforge-community/taskforge
+repo_name: taskforge-community/taskforge
+edit_uri: edit/main/docs/
+
+# Theme configuration
+theme:
+  name: material
+  language: en
+  palette:
+    # Light mode
+    - scheme: default
+      primary: teal
+      accent: deep orange
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Dark mode
+    - scheme: slate
+      primary: teal
+      accent: deep orange
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+  font:
+    text: Roboto
+    code: Roboto Mono
+
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.indexes
+    - navigation.top
+    - search.highlight
+    - search.share
+    - header.autohide
+    - content.code.annotate
+    - content.code.copy
+
+  icon:
+    repo: fontawesome/brands/github
+    logo: material/rocket-launch
+
+# Navigation structure
+nav:
+  - Home: index.md
+  - User Guide:
+      - user-guide/index.md
+  - Developer Guide:
+      - developer-guide/index.md
+      - Architecture Overview: architecture.md
+  - API Reference:
+      - api/index.md
+  - Contributing:
+      - Overview: CONTRIBUTING.md
+      - Beginner's Guide: contributing/beginners-guide.md
+  - CLI Reference:
+      - cli-reference.md
+  - Examples & Tutorials:
+      - tutorials/getting-started.md
+      - use-cases.md
+
+# Plugins
+plugins:
+  - search:
+      lang: en
+
+# Markdown extensions
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - meta
+  - md_in_html
+  - toc:
+      permalink: true
+      title: Table of contents
+  - tables
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.magiclink:
+      repo_url_shorthand: true
+      user: taskforge-community
+      repo: taskforge
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+
+# Extra CSS and JavaScript
+extra_css:
+  - stylesheets/extra.css
+
+extra_javascript:
+  - javascripts/extra.js
+  - javascripts/mathjax.js
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+
+# Extra configuration
+extra:
+  analytics:
+    provider: google
+    property: !ENV GOOGLE_ANALYTICS_KEY
+
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/taskforge-community/taskforge
+    - icon: fontawesome/brands/discord
+      link: https://discord.gg/taskforge
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/taskforge/
+
+  version:
+    provider: mike
+    default: stable
+
+  generator: false
+
+# Copyright
+copyright: |
+  &copy; 2024 TaskForge Community -
+  <a href="#__consent">Change Cookie Settings</a>
+
+# Development server configuration
+dev_addr: 0.0.0.0:8000
+
+# Exclude files from processing
+exclude_docs: |
+  .*/.*
+  *.tmp
+  *.bak
+  *.swp
