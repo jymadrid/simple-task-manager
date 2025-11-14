@@ -11,7 +11,7 @@ from taskforge.core.project import Project, ProjectStatus
 from taskforge.core.queries import TaskQuery
 from taskforge.core.task import Task, TaskPriority, TaskStatus
 from taskforge.core.user import Permission, User
-from taskforge.storage.base import StorageBackend
+from taskforge.storage.base import StorageProtocol
 from taskforge.utils.analytics import AnalyticsEngine
 from taskforge.utils.notifications import NotificationManager
 from taskforge.utils.search import SearchEngine
@@ -27,7 +27,7 @@ class TaskManager:
 
     def __init__(
         self,
-        storage: StorageBackend,
+        storage: StorageProtocol,
         notification_manager: Optional[NotificationManager] = None,
         search_engine: Optional[SearchEngine] = None,
         analytics_engine: Optional[AnalyticsEngine] = None,

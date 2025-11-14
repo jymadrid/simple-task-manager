@@ -109,7 +109,8 @@ asyncio.run(main())
 - **JSON Storage** - Perfect for development and small applications
 - **PostgreSQL** - Enterprise-grade with full async support
 - **MySQL** - Alternative SQL backend
-- **Custom** - Easy to implement your own storage layer
+- **Custom** - Easy to implement your own storage layer with `StorageProtocol`
+- **Type-Safe Interface** - `StorageProtocol` provides explicit interface definition for static type checking
 
 ### ⚡ **Performance Features**
 - **Async/Await** - Non-blocking operations throughout
@@ -166,13 +167,19 @@ curl -X POST "http://localhost:8000/tasks" \
 
 ### 🏢 **Enterprise Integration**
 ```python
-# Custom storage backend
+# Custom storage backend with StorageProtocol
+from taskforge.storage.base import StorageProtocol
+
 class CompanyStorage(StorageBackend):
+    """Custom storage implementing StorageProtocol for type safety"""
     async def create_task(self, task: Task) -> Task:
         # Integrate with company systems
         await self.notify_slack(task)
         await self.update_jira(task)
         return await super().create_task(task)
+
+# Type-safe TaskManager initialization
+manager = TaskManager(storage=CompanyStorage())  # Type checked!
 
 # Custom business logic
 class CompanyTask(Task):
@@ -320,7 +327,7 @@ All contributors are recognized in our [CONTRIBUTORS.md](./CONTRIBUTORS.md) file
 - [x] ✅ Comprehensive test suite with coverage enforcement
 - [x] ✅ CLI and API examples
 - [x] ✅ Performance monitoring and optimization
-- [x] ✅ Type safety improvements
+- [x] ✅ Type safety improvements with StorageProtocol
 - [x] ✅ Security enhancements
 - [x] ✅ CI/CD pipeline fixes (removed "fake green" issues)
 - [x] ✅ Documentation automation with MkDocs and GitHub Pages
@@ -473,7 +480,8 @@ asyncio.run(main())
 - **JSON 存储** - 完美适用于开发和小型应用
 - **PostgreSQL** - 企业级，完全支持异步
 - **MySQL** - 替代 SQL 后端
-- **自定义** - 轻松实现您自己的存储层
+- **自定义** - 使用 `StorageProtocol` 轻松实现您自己的存储层
+- **类型安全接口** - `StorageProtocol` 提供显式接口定义，支持静态类型检查
 
 ### ⚡ **性能特性**
 - **Async/Await** - 全程非阻塞操作
@@ -530,13 +538,19 @@ curl -X POST "http://localhost:8000/tasks" \
 
 ### 🏢 **企业集成**
 ```python
-# 自定义存储后端
+# 使用 StorageProtocol 的自定义存储后端
+from taskforge.storage.base import StorageProtocol
+
 class CompanyStorage(StorageBackend):
+    """实现 StorageProtocol 的自定义存储，确保类型安全"""
     async def create_task(self, task: Task) -> Task:
         # 与公司系统集成
         await self.notify_slack(task)
         await self.update_jira(task)
         return await super().create_task(task)
+
+# 类型安全的 TaskManager 初始化
+manager = TaskManager(storage=CompanyStorage())  # 类型检查通过！
 
 # 自定义业务逻辑
 class CompanyTask(Task):
@@ -684,7 +698,7 @@ git push origin feature/amazing-feature
 - [x] ✅ 全面测试套件，具备覆盖率强制
 - [x] ✅ CLI 和 API 示例
 - [x] ✅ 性能监控和优化
-- [x] ✅ 类型安全改进
+- [x] ✅ 使用 StorageProtocol 的类型安全改进
 - [x] ✅ 安全增强
 - [x] ✅ CI/CD 管道修复（移除"虚假绿色"问题）
 - [x] ✅ 文档自动化，使用MkDocs和GitHub Pages

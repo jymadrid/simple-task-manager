@@ -3,12 +3,123 @@ Base storage interface for TaskForge
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Protocol, runtime_checkable
 
 from taskforge.core.project import Project
 from taskforge.core.queries import TaskQuery
 from taskforge.core.task import Task
 from taskforge.core.user import User
+
+
+@runtime_checkable
+class StorageProtocol(Protocol):
+    """
+    Protocol defining the interface for storage backends.
+
+    This protocol uses structural subtyping (duck typing) to define the contract
+    that all storage backends must implement. It enables static type checking
+    while maintaining flexibility for custom implementations.
+    """
+
+    async def initialize(self) -> None:
+        """Initialize the storage backend"""
+        ...
+
+    async def cleanup(self) -> None:
+        """Cleanup and close connections"""
+        ...
+
+    # Task operations
+    async def create_task(self, task: Task) -> Task:
+        """Create a new task"""
+        ...
+
+    async def get_task(self, task_id: str) -> Optional[Task]:
+        """Get a task by ID"""
+        ...
+
+    async def update_task(self, task: Task) -> Task:
+        """Update an existing task"""
+        ...
+
+    async def delete_task(self, task_id: str) -> bool:
+        """Delete a task"""
+        ...
+
+    async def search_tasks(self, query: TaskQuery, user_id: str) -> List[Task]:
+        """Search tasks with filtering"""
+        ...
+
+    # Project operations
+    async def create_project(self, project: Project) -> Project:
+        """Create a new project"""
+        ...
+
+    async def get_project(self, project_id: str) -> Optional[Project]:
+        """Get a project by ID"""
+        ...
+
+    async def update_project(self, project: Project) -> Project:
+        """Update an existing project"""
+        ...
+
+    async def delete_project(self, project_id: str) -> bool:
+        """Delete a project"""
+        ...
+
+    async def get_user_projects(self, user_id: str) -> List[Project]:
+        """Get all projects for a user"""
+        ...
+
+    # User operations
+    async def create_user(self, user: User) -> User:
+        """Create a new user"""
+        ...
+
+    async def get_user(self, user_id: str) -> Optional[User]:
+        """Get a user by ID"""
+        ...
+
+    async def get_user_by_username(self, username: str) -> Optional[User]:
+        """Get a user by username"""
+        ...
+
+    async def get_user_by_email(self, email: str) -> Optional[User]:
+        """Get a user by email"""
+        ...
+
+    async def update_user(self, user: User) -> User:
+        """Update an existing user"""
+        ...
+
+    async def delete_user(self, user_id: str) -> bool:
+        """Delete a user"""
+        ...
+
+    # Statistics and analytics
+    async def get_task_statistics(
+        self, project_id: Optional[str] = None, user_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Get task statistics"""
+        ...
+
+    # Bulk operations
+    async def bulk_create_tasks(self, tasks: List[Task]) -> List[Task]:
+        """Create multiple tasks"""
+        ...
+
+    async def bulk_update_tasks(self, tasks: List[Task]) -> List[Task]:
+        """Update multiple tasks"""
+        ...
+
+    # Migration and backup
+    async def export_data(self) -> Dict[str, Any]:
+        """Export all data"""
+        ...
+
+    async def import_data(self, data: Dict[str, Any]) -> bool:
+        """Import data"""
+        ...
 
 
 class StorageBackend(ABC):
@@ -136,7 +247,7 @@ class StorageBackend(ABC):
     async def export_data(self) -> Dict[str, Any]:
         """Export all data (default implementation)"""
         # This is a basic implementation that subclasses can override
-        data = {
+        data: Dict[str, Any] = {
             "tasks": [],
             "projects": [],
             "users": [],
