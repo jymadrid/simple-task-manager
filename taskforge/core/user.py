@@ -145,7 +145,7 @@ class UserProfile(BaseModel):
         if email:
             import hashlib
 
-            email_hash = hashlib.md5(email.lower().encode()).hexdigest()
+            email_hash = hashlib.md5(email.lower().encode(), usedforsecurity=False).hexdigest()
             return f"https://www.gravatar.com/avatar/{email_hash}?d=identicon"
 
         return "https://www.gravatar.com/avatar/?d=mp"

@@ -28,7 +28,8 @@
       "Bash(docs_build/index.md)",
       "Bash(pytest tests/unit/test_manager.py --collect-only)",
       "Bash(taskforge/_version.py)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(bandit:*)"
     ],
     "deny": [],
     "ask": []
