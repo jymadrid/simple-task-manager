@@ -43,7 +43,9 @@ class Project(BaseModel):
     # Ownership and team
     owner_id: str = Field(..., description="Project owner user ID")
     team_members: Set[str] = Field(default_factory=set)  # User IDs
-    member_roles: Dict[str, str] = Field(default_factory=dict)  # user_id -> role mapping
+    member_roles: Dict[str, str] = Field(
+        default_factory=dict
+    )  # user_id -> role mapping
 
     # Temporal fields
     created_at: datetime = Field(default_factory=datetime.utcnow)
@@ -105,17 +107,33 @@ class Project(BaseModel):
         """Check if user is a project member"""
         return user_id == self.owner_id or user_id in self.team_members
 
-    def update_status(self, new_status: ProjectStatus, user_id: Optional[str] = None) -> None:
+    def update_status(
+        self, new_status: ProjectStatus, user_id: Optional[str] = None
+    ) -> None:
         """Update project status"""
         old_status = self.status
         self.status = new_status
-        self._log_activity("status_changed", {"old_status": old_status.value, "new_status": new_status.value, "user_id": user_id})
+        self._log_activity(
+            "status_changed",
+            {
+                "old_status": old_status.value,
+                "new_status": new_status.value,
+                "user_id": user_id,
+            },
+        )
 
     def update_progress(self, progress: int, user_id: Optional[str] = None) -> None:
         """Update project progress manually"""
         old_progress = self.progress
         self.progress = max(0, min(100, progress))
-        self._log_activity("progress_updated", {"old_progress": old_progress, "new_progress": self.progress, "user_id": user_id})
+        self._log_activity(
+            "progress_updated",
+            {
+                "old_progress": old_progress,
+                "new_progress": self.progress,
+                "user_id": user_id,
+            },
+        )
 
     def add_task_count(self, count: int) -> None:
         """Add to task count"""
@@ -241,7 +259,11 @@ class Project(BaseModel):
 
     def get_members_by_role(self, role: str) -> List[str]:
         """Get members with a specific role"""
-        return [user_id for user_id, user_role in self.member_roles.items() if user_role == role]
+        return [
+            user_id
+            for user_id, user_role in self.member_roles.items()
+            if user_role == role
+        ]
 
     def days_until_deadline(self) -> Optional[int]:
         """Get days until project deadline"""
@@ -263,11 +285,17 @@ class Project(BaseModel):
         """Check if project is overdue"""
         if not self.end_date:
             return False
-        return datetime.utcnow() > self.end_date and self.status not in [ProjectStatus.COMPLETED, ProjectStatus.CANCELLED, ProjectStatus.ARCHIVED]
+        return datetime.utcnow() > self.end_date and self.status not in [
+            ProjectStatus.COMPLETED,
+            ProjectStatus.CANCELLED,
+            ProjectStatus.ARCHIVED,
+        ]
 
     def get_statistics(self) -> Dict[str, Any]:
         """Get project statistics"""
-        status_str = self.status.value if isinstance(self.status, ProjectStatus) else self.status
+        status_str = (
+            self.status.value if isinstance(self.status, ProjectStatus) else self.status
+        )
         return {
             "task_count": self.task_count,
             "completed_task_count": self.completed_task_count,
@@ -290,11 +318,15 @@ class Project(BaseModel):
         self.activity_log.append(entry)
 
     def __str__(self) -> str:
-        status_str = self.status.value if isinstance(self.status, ProjectStatus) else self.status
+        status_str = (
+            self.status.value if isinstance(self.status, ProjectStatus) else self.status
+        )
         return f"Project({self.id[:8]}): {self.name} [{status_str}]"
 
     def __repr__(self) -> str:
-        status_str = self.status.value if isinstance(self.status, ProjectStatus) else self.status
+        status_str = (
+            self.status.value if isinstance(self.status, ProjectStatus) else self.status
+        )
         return f"<Project id={self.id[:8]} name='{self.name}' status={status_str}>"
 
     def __eq__(self, other: object) -> bool:

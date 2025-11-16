@@ -144,6 +144,7 @@ class UserProfile(BaseModel):
 
         if email:
             import hashlib
+
             email_hash = hashlib.md5(email.lower().encode()).hexdigest()
             return f"https://www.gravatar.com/avatar/{email_hash}?d=identicon"
 
@@ -312,9 +313,9 @@ class User(BaseModel):
     def to_dict(self) -> Dict[str, Any]:
         """Return full user data as dictionary"""
         # Get all fields including password_hash
-        data = self.model_dump(mode='python')
+        data = self.model_dump(mode="python")
         # Manually add password_hash since it's excluded by default
-        data['password_hash'] = self.password_hash
+        data["password_hash"] = self.password_hash
         return data
 
     def _log_activity(self, action: str, data: Optional[Dict[str, Any]] = None) -> None:

@@ -263,6 +263,7 @@ class Task(BaseModel):
         delta = due - now
         # Use ceiling to round up partial days
         import math
+
         return math.ceil(delta.total_seconds() / 86400)
 
     def get_blocked_dependencies(self) -> List[str]:
@@ -287,11 +288,13 @@ class Task(BaseModel):
         return data
 
     def __str__(self) -> str:
-        status_str = self.status.value if isinstance(self.status, TaskStatus) else self.status
+        status_str = (
+            self.status.value if isinstance(self.status, TaskStatus) else self.status
+        )
         return f"Task({self.id[:8]}): {self.title} [{status_str}]"
 
     def __repr__(self) -> str:
-        status_str = self.status.value if isinstance(self.status, TaskStatus) else self.status
-        return (
-            f"<Task id={self.id[:8]} title='{self.title}' status={status_str}>"
+        status_str = (
+            self.status.value if isinstance(self.status, TaskStatus) else self.status
         )
+        return f"<Task id={self.id[:8]} title='{self.title}' status={status_str}>"
