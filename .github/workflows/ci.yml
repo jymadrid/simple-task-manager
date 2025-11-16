@@ -39,11 +39,11 @@ jobs:
         
     - name: Run code formatting check with black
       run: |
-        black --check --diff taskforge/ tests/
-        
+        black --check --diff taskforge/ tests/ --exclude='_version\.py'
+
     - name: Run import sorting check with isort
       run: |
-        isort --check-only --diff taskforge/ tests/
+        isort --check-only --diff taskforge/ tests/ --skip taskforge/_version.py
         
     - name: Run linting with flake8
       run: |
