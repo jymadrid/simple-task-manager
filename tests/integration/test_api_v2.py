@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from taskforge.api.dependencies import get_current_user, get_task_manager
 from taskforge.api.main import app
 from taskforge.core.project import Project
 from taskforge.core.task import Task, TaskPriority, TaskStatus

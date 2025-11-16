@@ -243,14 +243,27 @@ class Task(BaseModel):
         """Check if task is overdue"""
         if not self.due_date or self.status in [TaskStatus.DONE, TaskStatus.CANCELLED]:
             return False
-        return datetime.now(timezone.utc) > self.due_date
+        now = datetime.now(timezone.utc)
+        due = self.due_date
+        # Handle naive datetimes
+        if due.tzinfo is None:
+            due = due.replace(tzinfo=timezone.utc)
+        return now > due
 
     def days_until_due(self) -> Optional[int]:
         """Get days until due date"""
         if not self.due_date:
             return None
-        delta = self.due_date - datetime.utcnow()
-        return delta.days
+        # Ensure both datetimes are timezone-aware
+        now = datetime.now(timezone.utc)
+        due = self.due_date
+        if due.tzinfo is None:
+            # If due_date is naive, assume UTC
+            due = due.replace(tzinfo=timezone.utc)
+        delta = due - now
+        # Use ceiling to round up partial days
+        import math
+        return math.ceil(delta.total_seconds() / 86400)
 
     def get_blocked_dependencies(self) -> List[str]:
         """Get list of tasks that are blocking this task"""
@@ -267,12 +280,18 @@ class Task(BaseModel):
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert task to dictionary"""
-        return self.model_dump()
+        data = self.model_dump()
+        # Convert sets to lists for JSON serialization
+        if "tags" in data and isinstance(data["tags"], set):
+            data["tags"] = list(data["tags"])
+        return data
 
     def __str__(self) -> str:
-        return f"Task({self.id[:8]}): {self.title} [{self.status.value}]"
+        status_str = self.status.value if isinstance(self.status, TaskStatus) else self.status
+        return f"Task({self.id[:8]}): {self.title} [{status_str}]"
 
     def __repr__(self) -> str:
+        status_str = self.status.value if isinstance(self.status, TaskStatus) else self.status
         return (
-            f"<Task id={self.id[:8]} title='{self.title}' status={self.status.value}>"
+            f"<Task id={self.id[:8]} title='{self.title}' status={status_str}>"
         )
