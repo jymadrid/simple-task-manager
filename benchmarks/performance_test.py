@@ -4,18 +4,18 @@ Performance benchmarking script for TaskForge
 """
 
 import asyncio
-import time
-from datetime import datetime, timezone, timedelta
-from pathlib import Path
 import shutil
-from typing import List
 import statistics
+import time
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import List
 
-from taskforge.core.task import Task, TaskStatus, TaskPriority
 from taskforge.core.queries import TaskQuery
+from taskforge.core.task import Task, TaskPriority, TaskStatus
 from taskforge.storage.json_storage import JSONStorage
 from taskforge.storage.optimized_storage import OptimizedJSONStorage
-from taskforge.utils.performance import get_metrics, clear_metrics
+from taskforge.utils.performance import clear_metrics, get_metrics
 
 
 class PerformanceBenchmark:
@@ -57,7 +57,7 @@ class PerformanceBenchmark:
                 priority=priorities[i % len(priorities)],
                 project_id=f"project-{i % 10}",
                 assigned_to=f"user-{i % 5}",
-                due_date=datetime.now(timezone.utc) + timedelta(days=i % 30)
+                due_date=datetime.now(timezone.utc) + timedelta(days=i % 30),
             )
             tasks.append(task)
 
@@ -122,7 +122,7 @@ class PerformanceBenchmark:
         query = TaskQuery(
             status=[TaskStatus.TODO],
             priority=[TaskPriority.HIGH, TaskPriority.CRITICAL],
-            project_id="project-3"
+            project_id="project-3",
         )
 
         start_time = time.perf_counter()
@@ -188,7 +188,9 @@ class OptimizedPerformanceBenchmark(PerformanceBenchmark):
             shutil.rmtree(self.data_dir)
 
         # 初始化优化存储
-        self.storage = OptimizedJSONStorage(str(self.data_dir), save_delay=0.1)  # 更短的延迟用于测试
+        self.storage = OptimizedJSONStorage(
+            str(self.data_dir), save_delay=0.1
+        )  # 更短的延迟用于测试
         await self.storage.initialize()
         clear_metrics()
 
@@ -208,7 +210,11 @@ class OptimizedPerformanceBenchmark(PerformanceBenchmark):
         results2 = await self.storage.search_tasks(query, "user-1")
         second_query_time = time.perf_counter() - start_time
 
-        cache_speedup = first_query_time / second_query_time if second_query_time > 0 else float('inf')
+        cache_speedup = (
+            first_query_time / second_query_time
+            if second_query_time > 0
+            else float("inf")
+        )
 
         print(f"✅ 首次查询: {first_query_time*1000:.2f}ms (缓存未命中)")
         print(f"✅ 缓存查询: {second_query_time*1000:.2f}ms (缓存命中)")
@@ -238,7 +244,7 @@ class OptimizedPerformanceBenchmark(PerformanceBenchmark):
         index_stats = self.storage.get_index_statistics()
         print(f"📊 索引统计:")
         for index_name, size in index_stats.items():
-            if index_name.endswith('_size'):
+            if index_name.endswith("_size"):
                 print(f"   - {index_name}: {size}")
 
         return indexed_time, len(results)
@@ -298,13 +304,17 @@ async def run_comparison_benchmark():
         opt_complex_time, _ = await optimized_bench.benchmark_complex_query()
 
         # 批量更新
-        opt_bulk_time, _ = await optimized_bench.benchmark_bulk_update(bulk_update_count)
+        opt_bulk_time, _ = await optimized_bench.benchmark_bulk_update(
+            bulk_update_count
+        )
 
         # 统计
         opt_stats_time, _ = await optimized_bench.benchmark_statistics()
 
         # 额外的优化测试
-        cache_first, cache_second, cache_speedup = await optimized_bench.benchmark_cache_performance()
+        cache_first, cache_second, cache_speedup = (
+            await optimized_bench.benchmark_cache_performance()
+        )
         index_time, _ = await optimized_bench.benchmark_index_performance()
 
     finally:
@@ -319,31 +329,43 @@ async def run_comparison_benchmark():
 
     def calculate_improvement(standard, optimized):
         if standard == 0:
-            return float('inf')
+            return float("inf")
         return ((standard - optimized) / standard) * 100
 
     improvements = {
-        '创建任务': calculate_improvement(create_time*1000, opt_create_time*1000),
-        '状态搜索': calculate_improvement(search_time*1000, opt_search_time*1000),
-        '项目搜索': calculate_improvement(project_time*1000, opt_project_time*1000),
-        '复杂查询': calculate_improvement(complex_time*1000, opt_complex_time*1000),
-        '批量更新': calculate_improvement(bulk_time*1000, opt_bulk_time*1000),
-        '统计查询': calculate_improvement(stats_time*1000, opt_stats_time*1000),
+        "创建任务": calculate_improvement(create_time * 1000, opt_create_time * 1000),
+        "状态搜索": calculate_improvement(search_time * 1000, opt_search_time * 1000),
+        "项目搜索": calculate_improvement(project_time * 1000, opt_project_time * 1000),
+        "复杂查询": calculate_improvement(complex_time * 1000, opt_complex_time * 1000),
+        "批量更新": calculate_improvement(bulk_time * 1000, opt_bulk_time * 1000),
+        "统计查询": calculate_improvement(stats_time * 1000, opt_stats_time * 1000),
     }
 
     for operation, improvement in improvements.items():
-        if operation == '创建任务':
-            print(f"{operation:<15} {create_time*1000:<12.2f} {opt_create_time*1000:<12.2f} {improvement:>+7.1f}%")
-        elif operation == '状态搜索':
-            print(f"{operation:<15} {search_time*1000:<12.2f} {opt_search_time*1000:<12.2f} {improvement:>+7.1f}%")
-        elif operation == '项目搜索':
-            print(f"{operation:<15} {project_time*1000:<12.2f} {opt_project_time*1000:<12.2f} {improvement:>+7.1f}%")
-        elif operation == '复杂查询':
-            print(f"{operation:<15} {complex_time*1000:<12.2f} {opt_complex_time*1000:<12.2f} {improvement:>+7.1f}%")
-        elif operation == '批量更新':
-            print(f"{operation:<15} {bulk_time*1000:<12.2f} {opt_bulk_time*1000:<12.2f} {improvement:>+7.1f}%")
-        elif operation == '统计查询':
-            print(f"{operation:<15} {stats_time*1000:<12.2f} {opt_stats_time*1000:<12.2f} {improvement:>+7.1f}%")
+        if operation == "创建任务":
+            print(
+                f"{operation:<15} {create_time*1000:<12.2f} {opt_create_time*1000:<12.2f} {improvement:>+7.1f}%"
+            )
+        elif operation == "状态搜索":
+            print(
+                f"{operation:<15} {search_time*1000:<12.2f} {opt_search_time*1000:<12.2f} {improvement:>+7.1f}%"
+            )
+        elif operation == "项目搜索":
+            print(
+                f"{operation:<15} {project_time*1000:<12.2f} {opt_project_time*1000:<12.2f} {improvement:>+7.1f}%"
+            )
+        elif operation == "复杂查询":
+            print(
+                f"{operation:<15} {complex_time*1000:<12.2f} {opt_complex_time*1000:<12.2f} {improvement:>+7.1f}%"
+            )
+        elif operation == "批量更新":
+            print(
+                f"{operation:<15} {bulk_time*1000:<12.2f} {opt_bulk_time*1000:<12.2f} {improvement:>+7.1f}%"
+            )
+        elif operation == "统计查询":
+            print(
+                f"{operation:<15} {stats_time*1000:<12.2f} {opt_stats_time*1000:<12.2f} {improvement:>+7.1f}%"
+            )
 
     print("\n🚀 优化特性:")
     print(f"   ✅ 延迟写入机制: 减少磁盘I/O")
@@ -353,7 +375,9 @@ async def run_comparison_benchmark():
     print(f"   ✅ 异步并发处理")
 
     # 计算平均性能提升
-    avg_improvement = statistics.mean([imp for imp in improvements.values() if imp != float('inf')])
+    avg_improvement = statistics.mean(
+        [imp for imp in improvements.values() if imp != float("inf")]
+    )
     print(f"\n🎯 平均性能提升: {avg_improvement:+.1f}%")
 
     if avg_improvement > 50:

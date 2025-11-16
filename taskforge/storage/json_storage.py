@@ -707,55 +707,6 @@ class JSONStorage(StorageBackend):
             self._projects_dirty = False
             self._users_dirty = False
 
-    # Bulk operations (already optimized)
-    async def bulk_create_tasks(self, tasks: List[Task]) -> List[Task]:
-
-        tasks = list(self._tasks_cache.values())
-
-        # Filter by project if specified
-        if project_id:
-            tasks = [t for t in tasks if t.project_id == project_id]
-
-        # Filter by user if specified
-        if user_id:
-            tasks = [t for t in tasks if t.assigned_to == user_id]
-
-        # Calculate statistics
-        total_tasks = len(tasks)
-        completed_tasks = len([t for t in tasks if t.status == TaskStatus.DONE])
-        in_progress_tasks = len(
-            [t for t in tasks if t.status == TaskStatus.IN_PROGRESS]
-        )
-        overdue_tasks = len([t for t in tasks if t.is_overdue()])
-
-        completion_rate = completed_tasks / total_tasks if total_tasks > 0 else 0
-
-        # Priority distribution
-        priority_dist = {}
-        for task in tasks:
-            priority = (
-                task.priority.value
-                if hasattr(task.priority, "value")
-                else task.priority
-            )
-            priority_dist[priority] = priority_dist.get(priority, 0) + 1
-
-        # Status distribution
-        status_dist = {}
-        for task in tasks:
-            status = task.status.value if hasattr(task.status, "value") else task.status
-            status_dist[status] = status_dist.get(status, 0) + 1
-
-        return {
-            "total_tasks": total_tasks,
-            "completed_tasks": completed_tasks,
-            "in_progress_tasks": in_progress_tasks,
-            "overdue_tasks": overdue_tasks,
-            "completion_rate": completion_rate,
-            "priority_distribution": priority_dist,
-            "status_distribution": status_dist,
-        }
-
     # Bulk operations
     async def bulk_create_tasks(self, tasks: List[Task]) -> List[Task]:
         """Create multiple tasks at once"""

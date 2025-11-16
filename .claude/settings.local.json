@@ -29,7 +29,8 @@
       "Bash(pytest tests/unit/test_manager.py --collect-only)",
       "Bash(taskforge/_version.py)",
       "Bash(find:*)",
-      "Bash(bandit:*)"
+      "Bash(bandit:*)",
+      "Bash(xargs:*)"
     ],
     "deny": [],
     "ask": []

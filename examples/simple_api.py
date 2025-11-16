@@ -166,21 +166,14 @@ async def root():
         "message": "⚡ Welcome to TaskForge API!",
         "tagline": "Beautifully designed task management",
         "version": "1.0.0",
-        "documentation": {
-            "interactive": "/docs",
-            "alternative": "/redoc"
-        },
-        "endpoints": {
-            "tasks": "/tasks",
-            "statistics": "/stats",
-            "demo_data": "/demo"
-        },
+        "documentation": {"interactive": "/docs", "alternative": "/redoc"},
+        "endpoints": {"tasks": "/tasks", "statistics": "/stats", "demo_data": "/demo"},
         "features": [
             "🚀 Lightning fast performance",
             "🎨 Apple-inspired design",
             "📊 Rich analytics",
-            "🔒 Production ready"
-        ]
+            "🔒 Production ready",
+        ],
     }
 
 
@@ -302,7 +295,9 @@ async def update_task(task_id: str, task_data: TaskUpdate):
     return TaskResponse.from_orm(updated_task)
 
 
-@app.delete("/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["📋 Tasks"])
+@app.delete(
+    "/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["📋 Tasks"]
+)
 async def delete_task(task_id: str):
     """
     Delete a specific task.
@@ -417,8 +412,8 @@ async def create_demo_data():
         "next_steps": [
             "📋 View all tasks: GET /tasks",
             "📊 Check analytics: GET /stats",
-            "✅ Complete a task: POST /tasks/{task_id}/complete"
-        ]
+            "✅ Complete a task: POST /tasks/{task_id}/complete",
+        ],
     }
 
 

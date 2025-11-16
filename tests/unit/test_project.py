@@ -1,3 +1,5 @@
+from datetime import timezone
+
 """
 Unit tests for Project model
 """
@@ -126,7 +128,7 @@ class TestProject:
 
     def test_project_dates(self):
         """Test project date management"""
-        start_date = datetime.utcnow()
+        start_date = datetime.now(timezone.utc)
         end_date = start_date + timedelta(days=30)
 
         project = Project(
@@ -217,8 +219,8 @@ class TestProject:
         project = Project(
             name="Test Project",
             owner_id="user-123",
-            start_date=datetime.utcnow() - timedelta(days=10),
-            end_date=datetime.utcnow() + timedelta(days=20),
+            start_date=datetime.now(timezone.utc) - timedelta(days=10),
+            end_date=datetime.now(timezone.utc) + timedelta(days=20),
         )
 
         # Set some progress
@@ -313,14 +315,14 @@ class TestProject:
     def test_project_deadline_warning(self):
         """Test project deadline warnings"""
         # Project ending soon
-        soon_end = datetime.utcnow() + timedelta(days=3)
+        soon_end = datetime.now(timezone.utc) + timedelta(days=3)
         project1 = Project(name="Ending Soon", owner_id="user-123", end_date=soon_end)
 
         assert project1.days_until_deadline() == 3
         assert project1.is_deadline_approaching(days_threshold=7)
 
         # Project already overdue
-        past_end = datetime.utcnow() - timedelta(days=2)
+        past_end = datetime.now(timezone.utc) - timedelta(days=2)
         project2 = Project(name="Overdue", owner_id="user-123", end_date=past_end)
 
         assert project2.days_until_deadline() == -2

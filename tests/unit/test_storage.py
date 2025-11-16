@@ -1,3 +1,5 @@
+from datetime import timezone
+
 """
 Unit tests for Storage backends
 """
@@ -331,7 +333,7 @@ class TestJSONStorage:
     @pytest.mark.asyncio
     async def test_date_filtering(self, storage):
         """Test date-based filtering"""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         yesterday = now - timedelta(days=1)
         tomorrow = now + timedelta(days=1)
 

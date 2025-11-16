@@ -643,7 +643,7 @@ class SearchEngine:
         try:
             # This is a simplified conversion - in a real implementation
             # you'd want to properly reconstruct the full object
-            from taskforge.core.task import Task, TaskPriority, TaskStatus, TaskType
+            from taskforge.core.task import Task  # Already imported at top
 
             task = Task(
                 id=doc["id"],

@@ -23,8 +23,8 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
-from rich.theme import Theme
 from rich.text import Text
+from rich.theme import Theme
 
 # Add the parent directory to the path so we can import taskforge
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -35,16 +35,18 @@ from taskforge.core.user import User
 from taskforge.storage.json_storage import JSONStorage
 
 # Apple-inspired theme for Rich
-apple_theme = Theme({
-    "primary": "#007AFF",      # SF Blue
-    "success": "#34C759",      # SF Green
-    "warning": "#FF9500",      # SF Orange
-    "error": "#FF3B30",        # SF Red
-    "secondary": "#5856D6",    # SF Purple
-    "muted": "#8E8E93",        # SF Gray
-    "accent": "#AF52DE",       # SF Purple variant
-    "info": "#00C7BE",         # SF Teal
-})
+apple_theme = Theme(
+    {
+        "primary": "#007AFF",  # SF Blue
+        "success": "#34C759",  # SF Green
+        "warning": "#FF9500",  # SF Orange
+        "error": "#FF3B30",  # SF Red
+        "secondary": "#5856D6",  # SF Purple
+        "muted": "#8E8E93",  # SF Gray
+        "accent": "#AF52DE",  # SF Purple variant
+        "info": "#00C7BE",  # SF Teal
+    }
+)
 
 console = Console(theme=apple_theme)
 
@@ -242,7 +244,9 @@ def list(status: Optional[str], limit: int):
             }
 
             status_display = status_styles.get(task.status.value, task.status.value)
-            priority_display = priority_styles.get(task.priority.value, task.priority.value)
+            priority_display = priority_styles.get(
+                task.priority.value, task.priority.value
+            )
 
             # Truncate long titles with elegant ellipsis
             title_display = task.title
@@ -285,12 +289,16 @@ def complete(task_id: str):
                 break
 
         if not matching_task:
-            console.print(f"❌ Task with ID '[primary]{task_id}[/primary]' not found", style="error")
+            console.print(
+                f"❌ Task with ID '[primary]{task_id}[/primary]' not found",
+                style="error",
+            )
             return
 
         if matching_task.status == TaskStatus.DONE:
             console.print(
-                f"ℹ️  Task '[accent]{matching_task.title}[/accent]' is already completed", style="warning"
+                f"ℹ️  Task '[accent]{matching_task.title}[/accent]' is already completed",
+                style="warning",
             )
             return
 
@@ -336,7 +344,10 @@ def delete(task_id: str):
                 break
 
         if not matching_task:
-            console.print(f"❌ Task with ID '[primary]{task_id}[/primary]' not found", style="error")
+            console.print(
+                f"❌ Task with ID '[primary]{task_id}[/primary]' not found",
+                style="error",
+            )
             return
 
         with Progress(
@@ -350,7 +361,8 @@ def delete(task_id: str):
 
         if deleted:
             console.print(
-                f"🗑️  Task '[accent]{matching_task.title}[/accent]' deleted successfully", style="success"
+                f"🗑️  Task '[accent]{matching_task.title}[/accent]' deleted successfully",
+                style="success",
             )
         else:
             console.print(f"❌ Failed to delete task", style="error")
@@ -380,13 +392,17 @@ def stats():
         # Main stats with visual elements
         stats_content.append(f"[bold primary]📊 Overview[/bold primary]")
         stats_content.append(f"Total Tasks: [bold]{stats['total_tasks']}[/bold]")
-        stats_content.append(f"Completed: [success]{stats['completed_tasks']}[/success] ([success]{stats['completion_rate']:.1%}[/success])")
+        stats_content.append(
+            f"Completed: [success]{stats['completed_tasks']}[/success] ([success]{stats['completion_rate']:.1%}[/success])"
+        )
         stats_content.append(f"In Progress: [info]{stats['in_progress_tasks']}[/info]")
         stats_content.append(f"Overdue: [error]{stats['overdue_tasks']}[/error]")
         stats_content.append("")
 
         # Priority distribution with visual bars
-        stats_content.append(f"[bold secondary]🎯 Priority Distribution[/bold secondary]")
+        stats_content.append(
+            f"[bold secondary]🎯 Priority Distribution[/bold secondary]"
+        )
         for priority, count in stats["priority_distribution"].items():
             # Create simple visual bar
             bar_length = min(count, 20)  # Max 20 chars
@@ -400,7 +416,9 @@ def stats():
             }
 
             visual_bar = priority_styles.get(priority, bar)
-            stats_content.append(f"  {priority.title()}: {visual_bar} [muted]({count})[/muted]")
+            stats_content.append(
+                f"  {priority.title()}: {visual_bar} [muted]({count})[/muted]"
+            )
 
         stats_content.append("")
 
@@ -419,8 +437,10 @@ def stats():
             }
 
             visual_bar = status_styles.get(status, bar)
-            display_status = status.replace('_', ' ').title()
-            stats_content.append(f"  {display_status}: {visual_bar} [muted]({count})[/muted]")
+            display_status = status.replace("_", " ").title()
+            stats_content.append(
+                f"  {display_status}: {visual_bar} [muted]({count})[/muted]"
+            )
 
         console.print(
             Panel(
@@ -464,14 +484,17 @@ def demo():
         console.print("🎭 Creating demo tasks...", style="primary")
 
         with Progress(console=console) as progress:
-            task = progress.add_task("[primary]Creating demo tasks...", total=len(demo_tasks))
+            task = progress.add_task(
+                "[primary]Creating demo tasks...", total=len(demo_tasks)
+            )
 
             for title, description, priority in demo_tasks:
                 await manager.add_task(title, description, priority)
                 progress.advance(task)
 
         console.print(
-            "✅ Demo tasks created! Use '[primary]list[/primary]' command to see them.", style="success"
+            "✅ Demo tasks created! Use '[primary]list[/primary]' command to see them.",
+            style="success",
         )
 
     asyncio.run(_demo())

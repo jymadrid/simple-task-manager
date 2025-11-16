@@ -4,12 +4,12 @@ Quick performance test to verify the optimizations work
 """
 
 import asyncio
+import shutil
 import time
 from pathlib import Path
-import shutil
 
-from taskforge.core.task import Task, TaskStatus, TaskPriority
 from taskforge.core.queries import TaskQuery
+from taskforge.core.task import Task, TaskPriority, TaskStatus
 from taskforge.storage.json_storage import JSONStorage
 from taskforge.storage.optimized_storage import OptimizedJSONStorage
 

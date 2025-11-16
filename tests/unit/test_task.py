@@ -1,3 +1,5 @@
+from datetime import timezone
+
 """
 Unit tests for Task model
 """
@@ -118,12 +120,12 @@ class TestTask:
     def test_overdue_detection(self):
         """Test overdue task detection"""
         # Task with future due date
-        future_date = datetime.utcnow() + timedelta(days=1)
+        future_date = datetime.now(timezone.utc) + timedelta(days=1)
         task1 = Task(title="Future Task", due_date=future_date)
         assert not task1.is_overdue()
 
         # Task with past due date
-        past_date = datetime.utcnow() - timedelta(days=1)
+        past_date = datetime.now(timezone.utc) - timedelta(days=1)
         task2 = Task(title="Past Task", due_date=past_date)
         assert task2.is_overdue()
 
@@ -138,12 +140,12 @@ class TestTask:
         assert task1.days_until_due() is None
 
         # Task due in 5 days
-        future_date = datetime.utcnow() + timedelta(days=5)
+        future_date = datetime.now(timezone.utc) + timedelta(days=5)
         task2 = Task(title="Future Task", due_date=future_date)
         assert task2.days_until_due() == 5
 
         # Overdue task
-        past_date = datetime.utcnow() - timedelta(days=3)
+        past_date = datetime.now(timezone.utc) - timedelta(days=3)
         task3 = Task(title="Overdue Task", due_date=past_date)
         assert task3.days_until_due() == -3
 

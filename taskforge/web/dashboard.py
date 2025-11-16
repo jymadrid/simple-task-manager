@@ -12,7 +12,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from taskforge.core.manager import TaskManager, TaskQuery
-from taskforge.core.task import Task, TaskPriority, TaskStatus
+from taskforge.core.task import Task, TaskPriority, TaskStatus, TaskType
 from taskforge.storage.json_storage import JsonStorage
 
 # Configure Streamlit page
