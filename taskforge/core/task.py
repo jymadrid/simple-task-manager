@@ -5,7 +5,7 @@ Core task model with advanced features
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Optional, List, Dict, Any, Set
+from typing import Any, Dict, List, Optional, Set
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator

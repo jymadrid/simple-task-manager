@@ -1,7 +1,6 @@
 """Tests for WebSocket functionality."""
 
 import pytest
-from fastapi import WebSocket
 
 from taskforge.api.websockets import ConnectionManager
 

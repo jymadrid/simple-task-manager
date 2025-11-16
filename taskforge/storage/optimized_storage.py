@@ -3,12 +3,13 @@ Optimized storage layer with advanced caching integration
 """
 
 from typing import Any, Dict, List, Optional
-from taskforge.storage.json_storage import JSONStorage
-from taskforge.core.task import Task
-from taskforge.core.queries import TaskQuery
+
 from taskforge.core.project import Project
+from taskforge.core.queries import TaskQuery
+from taskforge.core.task import Task
 from taskforge.core.user import User
-from taskforge.utils.cache import cache_result, MultiLevelCache
+from taskforge.storage.json_storage import JSONStorage
+from taskforge.utils.cache import MultiLevelCache, cache_result
 
 
 class OptimizedJSONStorage(JSONStorage):
@@ -21,10 +22,10 @@ class OptimizedJSONStorage(JSONStorage):
 
         # Multi-level cache for frequently accessed data
         self._query_cache = MultiLevelCache(
-            l1_size=200,    # L1: 200 most recent queries
-            l2_size=1000,   # L2: 1000 total queries
-            l1_ttl=300.0,   # L1: 5 minutes
-            l2_ttl=3600.0   # L2: 1 hour
+            l1_size=200,  # L1: 200 most recent queries
+            l2_size=1000,  # L2: 1000 total queries
+            l1_ttl=300.0,  # L1: 5 minutes
+            l2_ttl=3600.0,  # L2: 1 hour
         )
 
     @cache_result(max_size=500, ttl=600)  # Cache 500 results for 10 minutes
@@ -123,7 +124,9 @@ class OptimizedJSONStorage(JSONStorage):
 
 
 # Factory function for easy instantiation
-def create_optimized_storage(data_directory: str = "./data", save_delay: float = 0.5) -> OptimizedJSONStorage:
+def create_optimized_storage(
+    data_directory: str = "./data", save_delay: float = 0.5
+) -> OptimizedJSONStorage:
     """
     Factory function to create an optimized storage instance
 

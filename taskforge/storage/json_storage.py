@@ -10,12 +10,12 @@ from typing import Any, Dict, List, Optional
 
 import aiofiles
 
-from taskforge.core.queries import TaskQuery
 from taskforge.core.project import Project
+from taskforge.core.queries import TaskQuery
 from taskforge.core.task import Task, TaskStatus
 from taskforge.core.user import User
 from taskforge.storage.base import StorageBackend
-from taskforge.utils.performance import time_function, async_timer
+from taskforge.utils.performance import async_timer, time_function
 
 
 class JSONStorage(StorageBackend):
@@ -127,7 +127,9 @@ class JSONStorage(StorageBackend):
                     if "team_members" in project_dict and isinstance(
                         project_dict["team_members"], set
                     ):
-                        project_dict["team_members"] = list(project_dict["team_members"])
+                        project_dict["team_members"] = list(
+                            project_dict["team_members"]
+                        )
                     projects_data.append(project_dict)
                 async with aiofiles.open(self.projects_file, "w") as f:
                     await f.write(json.dumps(projects_data, indent=2, default=str))
@@ -162,7 +164,11 @@ class JSONStorage(StorageBackend):
         self._task_status_index[task.status].add(task.id)
 
         # Priority index
-        priority_val = task.priority.value if hasattr(task.priority, "value") else str(task.priority)
+        priority_val = (
+            task.priority.value
+            if hasattr(task.priority, "value")
+            else str(task.priority)
+        )
         if priority_val not in self._task_priority_index:
             self._task_priority_index[priority_val] = set()
         self._task_priority_index[priority_val].add(task.id)
@@ -191,7 +197,11 @@ class JSONStorage(StorageBackend):
             self._task_status_index[task.status].discard(task.id)
 
         # Remove from priority index
-        priority_val = task.priority.value if hasattr(task.priority, "value") else str(task.priority)
+        priority_val = (
+            task.priority.value
+            if hasattr(task.priority, "value")
+            else str(task.priority)
+        )
         if priority_val in self._task_priority_index:
             self._task_priority_index[priority_val].discard(task.id)
 
@@ -290,7 +300,7 @@ class JSONStorage(StorageBackend):
             self._task_tags_index.clear()
             self._cache_loaded = True
 
-      # Task operations
+    # Task operations
     @time_function
     async def create_task(self, task: Task) -> Task:
         """Create a new task"""
@@ -380,7 +390,9 @@ class JSONStorage(StorageBackend):
         if query.priority:
             priority_ids = set()
             for priority in query.priority:
-                priority_val = priority.value if hasattr(priority, "value") else str(priority)
+                priority_val = (
+                    priority.value if hasattr(priority, "value") else str(priority)
+                )
                 priority_ids.update(self._task_priority_index.get(priority_val, set()))
             index_selectivity.append((len(priority_ids), priority_ids))
             if candidate_task_ids is None:
@@ -422,7 +434,11 @@ class JSONStorage(StorageBackend):
             candidate_task_ids = set(self._tasks_cache.keys())
 
         # Performance optimization: convert IDs to tasks
-        tasks = [self._tasks_cache[task_id] for task_id in candidate_task_ids if task_id in self._tasks_cache]
+        tasks = [
+            self._tasks_cache[task_id]
+            for task_id in candidate_task_ids
+            if task_id in self._tasks_cache
+        ]
 
         # Apply non-indexed filters
         if query.created_after:
@@ -471,7 +487,9 @@ class JSONStorage(StorageBackend):
         if not self._cache_loaded:
             await self._load_cache()
 
-        self._cache_hits += 1 if project_id in self._projects_cache else self._cache_misses
+        self._cache_hits += (
+            1 if project_id in self._projects_cache else self._cache_misses
+        )
         return self._projects_cache.get(project_id)
 
     async def update_project(self, project: Project) -> Project:
@@ -608,7 +626,11 @@ class JSONStorage(StorageBackend):
             assignee_ids = self._task_assignee_index.get(user_id, set())
             candidate_task_ids &= assignee_ids
 
-        tasks = [self._tasks_cache[task_id] for task_id in candidate_task_ids if task_id in self._tasks_cache]
+        tasks = [
+            self._tasks_cache[task_id]
+            for task_id in candidate_task_ids
+            if task_id in self._tasks_cache
+        ]
 
         # Calculate statistics
         total_tasks = len(tasks)

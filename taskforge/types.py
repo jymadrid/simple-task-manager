@@ -16,4 +16,4 @@ IDType = str
 TimestampType = datetime
 DescriptionType = Optional[str]
 PriorityType = str  # TaskPriority enum value
-StatusType = str    # TaskStatus enum value
+StatusType = str  # TaskStatus enum value

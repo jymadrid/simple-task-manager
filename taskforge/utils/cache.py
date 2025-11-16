@@ -2,13 +2,13 @@
 Advanced caching utilities for TaskForge
 """
 
-from collections import OrderedDict
-from typing import Any, Callable, Dict, Optional, TypeVar
-from functools import wraps
 import asyncio
 import time
+from collections import OrderedDict
+from functools import wraps
+from typing import Any, Callable, Dict, Optional, TypeVar
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class LRUCache:
@@ -86,12 +86,12 @@ class LRUCache:
         hit_rate = self._hits / total_requests if total_requests > 0 else 0.0
 
         return {
-            'size': len(self._cache),
-            'max_size': self.max_size,
-            'hits': self._hits,
-            'misses': self._misses,
-            'hit_rate': hit_rate,
-            'ttl': self.ttl
+            "size": len(self._cache),
+            "max_size": self.max_size,
+            "hits": self._hits,
+            "misses": self._misses,
+            "hit_rate": hit_rate,
+            "ttl": self.ttl,
         }
 
 
@@ -106,7 +106,7 @@ class AsyncCachedProperty:
         self.__doc__ = func.__doc__
 
     def __set_name__(self, owner, name):
-        self.attrname = f'_cached_{name}'
+        self.attrname = f"_cached_{name}"
 
     def __get__(self, instance, owner=None):
         if instance is None:
@@ -185,7 +185,7 @@ class MultiLevelCache:
         l1_size: int = 100,
         l2_size: int = 1000,
         l1_ttl: Optional[float] = 60.0,
-        l2_ttl: Optional[float] = 3600.0
+        l2_ttl: Optional[float] = 3600.0,
     ):
         self.l1_cache = LRUCache(max_size=l1_size, ttl=l1_ttl)
         self.l2_cache = LRUCache(max_size=l2_size, ttl=l2_ttl)
@@ -223,7 +223,4 @@ class MultiLevelCache:
 
     def get_stats(self) -> Dict[str, Any]:
         """Get statistics for all cache levels"""
-        return {
-            'l1': self.l1_cache.get_stats(),
-            'l2': self.l2_cache.get_stats()
-        }
+        return {"l1": self.l1_cache.get_stats(), "l2": self.l2_cache.get_stats()}

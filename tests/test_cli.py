@@ -3,6 +3,7 @@ CLI测试模块
 """
 
 from typer.testing import CliRunner
+
 from taskforge.cli import app
 
 runner = CliRunner()

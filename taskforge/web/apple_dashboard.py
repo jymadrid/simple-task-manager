@@ -17,23 +17,23 @@ from taskforge.storage.json_storage import JSONStorage
 
 # Apple Design System Configuration
 APPLE_COLORS = {
-    "primary": "#007AFF",      # SF Blue
-    "secondary": "#5856D6",    # SF Purple
-    "success": "#34C759",      # SF Green
-    "warning": "#FF9500",      # SF Orange
-    "error": "#FF3B30",        # SF Red
-    "background": "#F2F2F7",   # Light background
-    "surface": "#FFFFFF",      # Pure white
-    "text_primary": "#000000", # Black
-    "text_secondary": "#8E8E93", # SF Gray
-    "border": "#E5E5EA",       # Light border
-    "accent": "#AF52DE",       # SF Purple variant
+    "primary": "#007AFF",  # SF Blue
+    "secondary": "#5856D6",  # SF Purple
+    "success": "#34C759",  # SF Green
+    "warning": "#FF9500",  # SF Orange
+    "error": "#FF3B30",  # SF Red
+    "background": "#F2F2F7",  # Light background
+    "surface": "#FFFFFF",  # Pure white
+    "text_primary": "#000000",  # Black
+    "text_secondary": "#8E8E93",  # SF Gray
+    "border": "#E5E5EA",  # Light border
+    "accent": "#AF52DE",  # SF Purple variant
     "system_gray": "#F2F2F7",
     "system_gray2": "#AEAEB2",
     "system_gray3": "#C7C7CC",
     "system_gray4": "#D1D1D6",
     "system_gray5": "#E5E5EA",
-    "system_gray6": "#F2F2F7"
+    "system_gray6": "#F2F2F7",
 }
 
 # Configure Streamlit page with Apple aesthetics
@@ -45,7 +45,8 @@ st.set_page_config(
 )
 
 # Apple-inspired CSS
-st.markdown(f"""
+st.markdown(
+    f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
@@ -300,7 +301,9 @@ st.markdown(f"""
     gap: 0.5rem;
 }}
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 # Initialize session state
 if "manager" not in st.session_state:
@@ -326,15 +329,31 @@ async def load_dashboard_data() -> Dict[str, Any]:
     all_tasks = await mgr.search_tasks(all_tasks_query, user_id)
 
     # Calculate metrics
-    overdue_tasks = [t for t in all_tasks if t.due_date and t.due_date < datetime.now() and t.status != TaskStatus.DONE]
-    upcoming_tasks = [t for t in all_tasks if t.due_date and t.due_date > datetime.now() and t.due_date < datetime.now() + timedelta(days=7)]
+    overdue_tasks = [
+        t
+        for t in all_tasks
+        if t.due_date and t.due_date < datetime.now() and t.status != TaskStatus.DONE
+    ]
+    upcoming_tasks = [
+        t
+        for t in all_tasks
+        if t.due_date
+        and t.due_date > datetime.now()
+        and t.due_date < datetime.now() + timedelta(days=7)
+    ]
 
     stats = {
-        'total_tasks': len(all_tasks),
-        'completed_tasks': len([t for t in all_tasks if t.status == TaskStatus.DONE]),
-        'in_progress_tasks': len([t for t in all_tasks if t.status == TaskStatus.IN_PROGRESS]),
-        'overdue_tasks': len(overdue_tasks),
-        'completion_rate': len([t for t in all_tasks if t.status == TaskStatus.DONE]) / len(all_tasks) if all_tasks else 0
+        "total_tasks": len(all_tasks),
+        "completed_tasks": len([t for t in all_tasks if t.status == TaskStatus.DONE]),
+        "in_progress_tasks": len(
+            [t for t in all_tasks if t.status == TaskStatus.IN_PROGRESS]
+        ),
+        "overdue_tasks": len(overdue_tasks),
+        "completion_rate": (
+            len([t for t in all_tasks if t.status == TaskStatus.DONE]) / len(all_tasks)
+            if all_tasks
+            else 0
+        ),
     }
 
     return {
@@ -345,14 +364,16 @@ async def load_dashboard_data() -> Dict[str, Any]:
     }
 
 
-def create_apple_metric_card(title: str, value: str, delta: str = None, color: str = "blue"):
+def create_apple_metric_card(
+    title: str, value: str, delta: str = None, color: str = "blue"
+):
     """Create an Apple-style metric card"""
     color_map = {
         "blue": APPLE_COLORS["primary"],
         "green": APPLE_COLORS["success"],
         "orange": APPLE_COLORS["warning"],
         "red": APPLE_COLORS["error"],
-        "purple": APPLE_COLORS["secondary"]
+        "purple": APPLE_COLORS["secondary"],
     }
 
     card_color = color_map.get(color, APPLE_COLORS["primary"])
@@ -388,13 +409,15 @@ def create_apple_status_chart(tasks: List[Task]) -> go.Figure:
 
     fig.update_layout(
         height=350,
-        font=dict(family="Inter, -apple-system, BlinkMacSystemFont, sans-serif", size=14),
+        font=dict(
+            family="Inter, -apple-system, BlinkMacSystemFont, sans-serif", size=14
+        ),
         title_font_size=18,
         title_font_color=APPLE_COLORS["text_primary"],
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         showlegend=True,
-        legend=dict(orientation="v", x=1.02, y=0.5)
+        legend=dict(orientation="v", x=1.02, y=0.5),
     )
 
     return fig
@@ -404,7 +427,9 @@ def create_apple_priority_chart(tasks: List[Task]) -> go.Figure:
     """Create Apple-style task priority distribution chart"""
     priority_counts = {}
     for task in tasks:
-        priority_counts[task.priority.value] = priority_counts.get(task.priority.value, 0) + 1
+        priority_counts[task.priority.value] = (
+            priority_counts.get(task.priority.value, 0) + 1
+        )
 
     fig = px.bar(
         x=list(priority_counts.keys()),
@@ -421,14 +446,16 @@ def create_apple_priority_chart(tasks: List[Task]) -> go.Figure:
 
     fig.update_layout(
         height=350,
-        font=dict(family="Inter, -apple-system, BlinkMacSystemFont, sans-serif", size=14),
+        font=dict(
+            family="Inter, -apple-system, BlinkMacSystemFont, sans-serif", size=14
+        ),
         title_font_size=18,
         title_font_color=APPLE_COLORS["text_primary"],
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         showlegend=False,
         xaxis=dict(title="", gridcolor=APPLE_COLORS["border"]),
-        yaxis=dict(title="Tasks", gridcolor=APPLE_COLORS["border"])
+        yaxis=dict(title="Tasks", gridcolor=APPLE_COLORS["border"]),
     )
 
     fig.update_traces(marker_line_width=0)
@@ -438,21 +465,26 @@ def create_apple_priority_chart(tasks: List[Task]) -> go.Figure:
 def render_apple_task_table(tasks: List[Task], title: str):
     """Render an Apple-style task table"""
     if not tasks:
-        st.markdown(f'<div class="glass-panel"><p style="text-align: center; color: {APPLE_COLORS["text_secondary"]};">No {title.lower()} found.</p></div>', unsafe_allow_html=True)
+        st.markdown(
+            f'<div class="glass-panel"><p style="text-align: center; color: {APPLE_COLORS["text_secondary"]};">No {title.lower()} found.</p></div>',
+            unsafe_allow_html=True,
+        )
         return
 
     # Convert tasks to DataFrame
     task_data = []
     for task in tasks:
-        task_data.append({
-            "ID": task.id[:8],
-            "Title": task.title,
-            "Status": task.status.value,
-            "Priority": task.priority.value,
-            "Progress": f"{task.progress}%",
-            "Due Date": task.due_date.strftime("%m/%d") if task.due_date else "—",
-            "Created": task.created_at.strftime("%m/%d")
-        })
+        task_data.append(
+            {
+                "ID": task.id[:8],
+                "Title": task.title,
+                "Status": task.status.value,
+                "Priority": task.priority.value,
+                "Progress": f"{task.progress}%",
+                "Due Date": task.due_date.strftime("%m/%d") if task.due_date else "—",
+                "Created": task.created_at.strftime("%m/%d"),
+            }
+        )
 
     df = pd.DataFrame(task_data)
 
@@ -463,15 +495,23 @@ def render_apple_task_table(tasks: List[Task], title: str):
 def main():
     """Main Apple-inspired dashboard application"""
     # Header with Apple-style design
-    st.markdown('<h1 style="text-align: center; margin-bottom: 2rem;">⚡ TaskForge</h1>', unsafe_allow_html=True)
-    st.markdown('<p style="text-align: center; color: #8E8E93; font-size: 1.2rem; margin-bottom: 3rem;">Beautifully designed task management</p>', unsafe_allow_html=True)
+    st.markdown(
+        '<h1 style="text-align: center; margin-bottom: 2rem;">⚡ TaskForge</h1>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        '<p style="text-align: center; color: #8E8E93; font-size: 1.2rem; margin-bottom: 3rem;">Beautifully designed task management</p>',
+        unsafe_allow_html=True,
+    )
 
     # Sidebar navigation
-    st.sidebar.markdown('<h2 style="margin-bottom: 2rem;">Navigation</h2>', unsafe_allow_html=True)
+    st.sidebar.markdown(
+        '<h2 style="margin-bottom: 2rem;">Navigation</h2>', unsafe_allow_html=True
+    )
     page = st.sidebar.selectbox(
         "",
         ["📊 Dashboard", "📋 Tasks", "📁 Projects", "📈 Analytics", "⚙️ Settings"],
-        format_func=lambda x: x
+        format_func=lambda x: x,
     )
 
     if page == "📊 Dashboard":
@@ -501,8 +541,10 @@ def render_dashboard_page():
 
     with col1:
         st.markdown(
-            create_apple_metric_card("Total Tasks", str(data["stats"]["total_tasks"]), color="blue"),
-            unsafe_allow_html=True
+            create_apple_metric_card(
+                "Total Tasks", str(data["stats"]["total_tasks"]), color="blue"
+            ),
+            unsafe_allow_html=True,
         )
 
     with col2:
@@ -511,22 +553,26 @@ def render_dashboard_page():
                 "Completed",
                 str(data["stats"]["completed_tasks"]),
                 f"{data['stats']['completion_rate']:.0%} completion rate",
-                color="green"
+                color="green",
             ),
-            unsafe_allow_html=True
+            unsafe_allow_html=True,
         )
 
     with col3:
         st.markdown(
-            create_apple_metric_card("In Progress", str(data["stats"]["in_progress_tasks"]), color="purple"),
-            unsafe_allow_html=True
+            create_apple_metric_card(
+                "In Progress", str(data["stats"]["in_progress_tasks"]), color="purple"
+            ),
+            unsafe_allow_html=True,
         )
 
     with col4:
         overdue_color = "red" if data["stats"]["overdue_tasks"] > 0 else "green"
         st.markdown(
-            create_apple_metric_card("Overdue", str(data["stats"]["overdue_tasks"]), color=overdue_color),
-            unsafe_allow_html=True
+            create_apple_metric_card(
+                "Overdue", str(data["stats"]["overdue_tasks"]), color=overdue_color
+            ),
+            unsafe_allow_html=True,
         )
 
     st.markdown("<br>", unsafe_allow_html=True)
@@ -539,13 +585,13 @@ def render_dashboard_page():
             st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
             fig = create_apple_status_chart(data["all_tasks"])
             st.plotly_chart(fig, use_container_width=True)
-            st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
 
         with col2:
             st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
             fig = create_apple_priority_chart(data["all_tasks"])
             st.plotly_chart(fig, use_container_width=True)
-            st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
 
     # Task lists
     col1, col2 = st.columns(2)
@@ -559,7 +605,9 @@ def render_dashboard_page():
 
 def render_tasks_page():
     """Render the Apple-style tasks management page"""
-    st.markdown('<h2 class="section-header">📋 Task Management</h2>', unsafe_allow_html=True)
+    st.markdown(
+        '<h2 class="section-header">📋 Task Management</h2>', unsafe_allow_html=True
+    )
 
     # Task creation form with Apple design
     with st.expander("➕ Create New Task", expanded=False):
@@ -569,8 +617,12 @@ def render_tasks_page():
             col1, col2 = st.columns(2)
 
             with col1:
-                title = st.text_input("Task Title", placeholder="What needs to be done?")
-                description = st.text_area("Description", placeholder="Add more details...")
+                title = st.text_input(
+                    "Task Title", placeholder="What needs to be done?"
+                )
+                description = st.text_area(
+                    "Description", placeholder="Add more details..."
+                )
                 due_date = st.date_input("Due Date")
 
             with col2:
@@ -586,7 +638,7 @@ def render_tasks_page():
                 except Exception as e:
                     st.error(f"❌ Error creating task: {e}")
 
-        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
     # Search and filters
     st.markdown('<h3 class="section-header">🔍 Find Tasks</h3>', unsafe_allow_html=True)
@@ -603,7 +655,7 @@ def render_tasks_page():
     st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
     st.markdown("### Your Tasks")
     st.info("Task list will be displayed here with your search criteria.")
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def render_projects_page():
@@ -612,8 +664,10 @@ def render_projects_page():
 
     st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
     st.markdown("### Coming Soon")
-    st.markdown("Project management features are being designed with the same beautiful Apple aesthetics.")
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown(
+        "Project management features are being designed with the same beautiful Apple aesthetics."
+    )
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def render_analytics_page():
@@ -623,7 +677,7 @@ def render_analytics_page():
     st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
     st.markdown("### Advanced Analytics")
     st.markdown("Detailed insights and productivity metrics coming soon.")
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def render_settings_page():
@@ -643,7 +697,7 @@ def render_settings_page():
     if st.button("Save Settings", use_container_width=True):
         st.success("✅ Settings saved successfully!")
 
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 if __name__ == "__main__":

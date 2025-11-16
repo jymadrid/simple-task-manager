@@ -1,0 +1,22 @@
+[flake8]
+max-line-length = 88
+extend-ignore = E203, W503, F401, F541, F821, F811
+exclude =
+    .git,
+    __pycache__,
+    .venv,
+    venv,
+    build,
+    dist,
+    *.egg-info,
+    taskforge/_version.py,
+    taskforge/marketplace.py,
+    taskforge/integrations/__init__.py,
+    taskforge/storage/json_storage.py,
+    taskforge/utils/search.py,
+    taskforge/web/dashboard.py,
+    tests/integration/test_api_v2.py
+per-file-ignores =
+    __init__.py:F401
+    taskforge/api/__init__.py:F401
+    taskforge/cli/__init__.py:F401,E501

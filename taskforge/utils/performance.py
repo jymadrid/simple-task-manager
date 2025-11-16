@@ -54,19 +54,19 @@ def get_metrics(name: Optional[str] = None) -> Dict[str, Dict[str, float]]:
     for metric_name, values in data.items():
         if values:
             stats[metric_name] = {
-                'count': len(values),
-                'avg': sum(values) / len(values),
-                'min': min(values),
-                'max': max(values),
-                'last': values[-1]
+                "count": len(values),
+                "avg": sum(values) / len(values),
+                "min": min(values),
+                "max": max(values),
+                "last": values[-1],
             }
         else:
             stats[metric_name] = {
-                'count': 0,
-                'avg': 0.0,
-                'min': 0.0,
-                'max': 0.0,
-                'last': 0.0
+                "count": 0,
+                "avg": 0.0,
+                "min": 0.0,
+                "max": 0.0,
+                "last": 0.0,
             }
 
     return stats
@@ -83,6 +83,7 @@ def clear_metrics(name: Optional[str] = None) -> None:
 def time_function(func: Callable) -> Callable:
     """Decorator to time function execution"""
     if asyncio.iscoroutinefunction(func):
+
         @wraps(func)
         async def async_wrapper(*args, **kwargs):
             start_time = time.perf_counter()
@@ -93,8 +94,10 @@ def time_function(func: Callable) -> Callable:
                 end_time = time.perf_counter()
                 duration = end_time - start_time
                 record_metric(f"{func.__module__}.{func.__name__}", duration)
+
         return async_wrapper
     else:
+
         @wraps(func)
         def sync_wrapper(*args, **kwargs):
             start_time = time.perf_counter()
@@ -105,6 +108,7 @@ def time_function(func: Callable) -> Callable:
                 end_time = time.perf_counter()
                 duration = end_time - start_time
                 record_metric(f"{func.__module__}.{func.__name__}", duration)
+
         return sync_wrapper
 
 
