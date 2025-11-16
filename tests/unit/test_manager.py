@@ -12,7 +12,7 @@ from taskforge.core.project import Project
 from taskforge.core.queries import TaskQuery
 from taskforge.core.task import Task, TaskPriority, TaskStatus
 from taskforge.core.user import Permission, User
-from tests.conftest import TestHelper
+from ..conftest import TestHelper
 
 
 class TestTaskManager:
