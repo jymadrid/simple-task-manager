@@ -2,7 +2,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
 from taskforge.api.routers import projects, tasks, users
 
-from .dependencies import storage  # Import storage to initialize it
+from .dependencies import storage  # Import storage to initialize it  # noqa: F401
 from .websockets import manager
 
 app = FastAPI(
@@ -16,7 +16,9 @@ app = FastAPI(
 async def startup_event():
     """Initialize storage on startup"""
     from .dependencies import get_storage
+
     await get_storage()
+
 
 @app.get("/health")
 async def health_check():
@@ -34,6 +36,7 @@ async def read_root():
 app.include_router(users.router, prefix="/api/v1/users", tags=["Users"])
 app.include_router(projects.router, prefix="/api/v1/projects", tags=["Projects"])
 app.include_router(tasks.router, prefix="/api/v1/tasks", tags=["Tasks"])
+
 
 @app.websocket("/ws/updates")
 async def websocket_endpoint(websocket: WebSocket) -> None:

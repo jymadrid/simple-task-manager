@@ -1,8 +1,7 @@
 import asyncio
 import time
+
 import httpx
-from typing import List, Dict
-import json
 
 API_URL = "http://127.0.0.1:8000/api/v1/tasks/"
 
@@ -25,7 +24,10 @@ async def fetch_tasks(client: httpx.AsyncClient):
 
 
 async def run_benchmark():
-    print(f"Starting benchmark with {NUM_REQUESTS} requests and concurrency of {CONCURRENCY}...")
+    print(
+        f"Starting benchmark with {NUM_REQUESTS} requests "
+        f"and concurrency of {CONCURRENCY}..."
+    )
 
     async with httpx.AsyncClient() as client:
         semaphore = asyncio.Semaphore(CONCURRENCY)
