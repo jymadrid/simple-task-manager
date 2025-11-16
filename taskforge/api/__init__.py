@@ -2,7 +2,7 @@
 FastAPI-based REST API
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import uvicorn
@@ -135,7 +135,7 @@ async def get_current_user(
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
-    return {"status": "healthy", "timestamp": datetime.utcnow()}
+    return {"status": "healthy", "timestamp": datetime.now(timezone.utc)}
 
 
 # Authentication endpoints

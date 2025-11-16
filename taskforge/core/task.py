@@ -73,7 +73,7 @@ class TaskDependency(BaseModel):
 
     task_id: str
     dependency_type: str = "blocks"  # blocks, subtask, related
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class Task(BaseModel):

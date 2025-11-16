@@ -3,7 +3,7 @@ Project management model
 """
 
 import math
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set
 from uuid import uuid4
@@ -168,7 +168,7 @@ class Project(BaseModel):
 
     def is_active_period(self) -> bool:
         """Check if project is within active date range"""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         if self.start_date and now < self.start_date:
             return False
         if self.end_date and now > self.end_date:
@@ -216,7 +216,7 @@ class Project(BaseModel):
 
         # Factor 3: Schedule adherence
         if self.start_date and self.end_date:
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             total_duration = (self.end_date - self.start_date).total_seconds()
             elapsed = (now - self.start_date).total_seconds()
 
@@ -269,7 +269,7 @@ class Project(BaseModel):
         """Get days until project deadline"""
         if not self.end_date:
             return None
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         delta = self.end_date - now
         # Use ceiling to round up partial days
         return math.ceil(delta.total_seconds() / 86400)
@@ -285,7 +285,7 @@ class Project(BaseModel):
         """Check if project is overdue"""
         if not self.end_date:
             return False
-        return datetime.utcnow() > self.end_date and self.status not in [
+        return datetime.now(timezone.utc) > self.end_date and self.status not in [
             ProjectStatus.COMPLETED,
             ProjectStatus.CANCELLED,
             ProjectStatus.ARCHIVED,
@@ -312,7 +312,7 @@ class Project(BaseModel):
         """Log project activity"""
         entry = {
             "action": action,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "data": data,
         }
         self.activity_log.append(entry)

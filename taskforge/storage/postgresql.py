@@ -3,7 +3,7 @@ PostgreSQL storage backend
 """
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import asyncpg
@@ -78,7 +78,7 @@ class PostgreSQLStorage(StorageBackend):
     async def update_task(self, task: Task) -> Task:
         """Update an existing task"""
         async with self._get_session() as session:
-            task.updated_at = datetime.utcnow()
+            task.updated_at = datetime.now(timezone.utc)
 
             stmt = (
                 update(TaskModel)
@@ -185,7 +185,7 @@ class PostgreSQLStorage(StorageBackend):
     async def update_project(self, project: Project) -> Project:
         """Update an existing project"""
         async with self._get_session() as session:
-            project.updated_at = datetime.utcnow()
+            project.updated_at = datetime.now(timezone.utc)
 
             stmt = (
                 update(ProjectModel)
@@ -271,7 +271,7 @@ class PostgreSQLStorage(StorageBackend):
     async def update_user(self, user: User) -> User:
         """Update an existing user"""
         async with self._get_session() as session:
-            user.updated_at = datetime.utcnow()
+            user.updated_at = datetime.now(timezone.utc)
 
             stmt = (
                 update(UserModel)
@@ -340,7 +340,7 @@ class PostgreSQLStorage(StorageBackend):
             # Overdue tasks
             overdue_query = base_query.where(
                 and_(
-                    TaskModel.due_date < datetime.utcnow(),
+                    TaskModel.due_date < datetime.now(timezone.utc),
                     TaskModel.status.notin_(
                         [TaskStatus.DONE.value, TaskStatus.CANCELLED.value]
                     ),
@@ -383,7 +383,7 @@ class PostgreSQLStorage(StorageBackend):
         """Update multiple tasks efficiently"""
         async with self._get_session() as session:
             for task in tasks:
-                task.updated_at = datetime.utcnow()
+                task.updated_at = datetime.now(timezone.utc)
                 stmt = (
                     update(TaskModel)
                     .where(TaskModel.id == task.id)

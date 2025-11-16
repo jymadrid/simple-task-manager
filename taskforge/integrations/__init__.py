@@ -5,7 +5,7 @@ Data export and import utilities
 import csv
 import json
 import xml.etree.ElementTree as ET
-from datetime import datetime
+from datetime import datetime, timezone
 from io import StringIO
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
@@ -37,7 +37,7 @@ class DataExporter:
 
         export_data = {
             "export_type": "tasks",
-            "exported_at": datetime.utcnow().isoformat(),
+            "exported_at": datetime.now(timezone.utc).isoformat(),
             "project_id": project_id,
             "user_id": user_id,
             "count": len(tasks_data),
@@ -113,7 +113,7 @@ class DataExporter:
         md_content = []
         md_content.append("# Task Export")
         md_content.append(
-            f"\nExported on: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}"
+            f"\nExported on: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}"
         )
 
         if project_id:
@@ -194,7 +194,7 @@ class DataExporter:
 
         export_data = {
             "export_type": "projects_summary",
-            "exported_at": datetime.utcnow().isoformat(),
+            "exported_at": datetime.now(timezone.utc).isoformat(),
             "user_id": user_id,
             "count": len(projects_summary),
             "projects": projects_summary,

@@ -89,7 +89,7 @@ class AnalyticsEngine:
         self.storage = storage_backend
         self._cache = {}
         self._cache_ttl = timedelta(minutes=15)
-        self._last_cache_clear = datetime.utcnow()
+        self._last_cache_clear = datetime.now(timezone.utc)
 
     async def get_task_statistics(
         self, project_id: Optional[str] = None, user_id: Optional[str] = None
@@ -176,7 +176,7 @@ class AnalyticsEngine:
         if cached:
             return cached
 
-        end_date = datetime.utcnow()
+        end_date = datetime.now(timezone.utc)
         start_date = end_date - timedelta(days=days)
 
         if self.storage:
@@ -273,7 +273,7 @@ class AnalyticsEngine:
         # Progress calculation
         if project.start_date and project.end_date:
             total_duration = (project.end_date - project.start_date).days
-            elapsed_duration = (datetime.utcnow() - project.start_date).days
+            elapsed_duration = (datetime.now(timezone.utc) - project.start_date).days
             time_progress = min(
                 1.0, elapsed_duration / total_duration if total_duration > 0 else 0.0
             )
@@ -356,7 +356,7 @@ class AnalyticsEngine:
                 for t in team_tasks
                 if t.status == TaskStatus.DONE
                 and t.completed_at
-                and t.completed_at >= datetime.utcnow() - timedelta(days=7)
+                and t.completed_at >= datetime.now(timezone.utc) - timedelta(days=7)
             ]
         )
 
@@ -456,7 +456,7 @@ class AnalyticsEngine:
         trends = {"created": [], "completed": [], "completion_rate": []}
 
         # Group tasks by month for the last 12 months
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         for i in range(12):
             month_start = now.replace(day=1) - timedelta(days=30 * i)
             month_end = month_start.replace(day=28) + timedelta(days=4)
@@ -568,7 +568,7 @@ class AnalyticsEngine:
 
         # Schedule slippage factor
         if project.end_date:
-            days_to_deadline = (project.end_date - datetime.utcnow()).days
+            days_to_deadline = (project.end_date - datetime.now(timezone.utc)).days
             if days_to_deadline < 0:
                 risk_factors.append(0.5)  # Project is overdue
             elif days_to_deadline < 7:
@@ -643,10 +643,10 @@ class AnalyticsEngine:
 
         remaining_tasks = len([t for t in tasks if t.status != TaskStatus.DONE])
         if remaining_tasks == 0:
-            return datetime.utcnow().date().isoformat()
+            return datetime.now(timezone.utc).date().isoformat()
 
         # Calculate recent velocity (tasks completed per day in last 30 days)
-        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+        thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
         recent_completions = len(
             [
                 t
@@ -663,7 +663,7 @@ class AnalyticsEngine:
             return None  # Cannot estimate
 
         days_to_completion = remaining_tasks / velocity
-        estimated_date = datetime.utcnow() + timedelta(days=days_to_completion)
+        estimated_date = datetime.now(timezone.utc) + timedelta(days=days_to_completion)
 
         return estimated_date.date().isoformat()
 
@@ -720,9 +720,9 @@ class AnalyticsEngine:
 
     def _get_cached_result(self, key: str) -> Optional[Any]:
         """Get cached result if still valid"""
-        if datetime.utcnow() - self._last_cache_clear > self._cache_ttl:
+        if datetime.now(timezone.utc) - self._last_cache_clear > self._cache_ttl:
             self._cache.clear()
-            self._last_cache_clear = datetime.utcnow()
+            self._last_cache_clear = datetime.now(timezone.utc)
 
         return self._cache.get(key)
 

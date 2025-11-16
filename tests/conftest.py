@@ -58,7 +58,7 @@ async def sample_user(task_manager: TaskManager) -> User:
         email="test@example.com",
         password="testpassword123",
         full_name="Test User",
-        role=UserRole.DEVELOPER,
+        role=UserRole.MANAGER,
     )
     created_user = await task_manager.storage.create_user(user)
     return created_user

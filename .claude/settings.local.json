@@ -16,7 +16,19 @@
       "Bash(yamllint:*)",
       "Bash(pip install:*)",
       "Bash(mkdocs:*)",
-      "Bash(timeout:*)"
+      "Bash(timeout:*)",
+      "Bash(mypy:*)",
+      "Bash(del:*)",
+      "Bash(git add:*)",
+      "Bash(md5sum:*)",
+      "Bash(black --check:*)",
+      "Bash(black:*)",
+      "Bash(isort:*)",
+      "Bash(flake8:*)",
+      "Bash(docs_build/index.md)",
+      "Bash(pytest tests/unit/test_manager.py --collect-only)",
+      "Bash(taskforge/_version.py)",
+      "Bash(find:*)"
     ],
     "deny": [],
     "ask": []

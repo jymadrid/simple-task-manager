@@ -7,7 +7,7 @@ import logging
 import re
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
@@ -329,7 +329,7 @@ class SearchEngine:
 
     async def search_tasks(self, query: SearchQuery, user_id: str) -> SearchResults:
         """Search for tasks"""
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
 
         # Get base results from storage if no text query
         if not query.text:
@@ -375,7 +375,7 @@ class SearchEngine:
             total_count = len(sorted_results)
 
         # Calculate query time
-        query_time = (datetime.utcnow() - start_time).total_seconds() * 1000
+        query_time = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
 
         # Generate facets (simplified)
         facets = self._generate_facets(results) if results else {}
@@ -389,7 +389,7 @@ class SearchEngine:
 
     async def search_projects(self, query: SearchQuery, user_id: str) -> SearchResults:
         """Search for projects"""
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
 
         if not query.text:
             # Fallback to storage
@@ -415,7 +415,7 @@ class SearchEngine:
             results = project_results[query.offset : query.offset + query.limit]
             total_count = len(project_results)
 
-        query_time = (datetime.utcnow() - start_time).total_seconds() * 1000
+        query_time = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
 
         return SearchResults(
             items=results, total_count=total_count, query_time_ms=query_time
@@ -425,7 +425,7 @@ class SearchEngine:
         self, query: SearchQuery, requester_id: str
     ) -> SearchResults:
         """Search for users"""
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
 
         if not query.text:
             results = []
@@ -450,7 +450,7 @@ class SearchEngine:
             results = user_results[query.offset : query.offset + query.limit]
             total_count = len(user_results)
 
-        query_time = (datetime.utcnow() - start_time).total_seconds() * 1000
+        query_time = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
 
         return SearchResults(
             items=results, total_count=total_count, query_time_ms=query_time

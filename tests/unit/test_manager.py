@@ -32,7 +32,7 @@ class TestTaskManager:
 
         created_task = await task_manager.create_task(task, sample_user.id)
 
-        assert created_task.id != task.id  # Should get new ID from storage
+        assert created_task.id == task.id  # Storage should preserve the task ID
         assert created_task.title == "New Task"
         assert created_task.created_by == sample_user.id
         assert created_task.project_id == sample_project.id

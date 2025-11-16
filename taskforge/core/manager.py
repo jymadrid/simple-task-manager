@@ -4,7 +4,7 @@ Central task management system
 
 import asyncio
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Set
 
 from taskforge.core.project import Project, ProjectStatus
@@ -214,7 +214,7 @@ class TaskManager:
         """Get all overdue tasks"""
         query = TaskQuery(
             status=[TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.BLOCKED],
-            due_before=datetime.utcnow(),
+            due_before=datetime.now(timezone.utc),
             assigned_to=user_id,
         )
         return await self.search_tasks(query, user_id or "system")
@@ -223,10 +223,10 @@ class TaskManager:
         self, days: int = 7, user_id: Optional[str] = None
     ) -> List[Task]:
         """Get tasks due in the next N days"""
-        end_date = datetime.utcnow() + timedelta(days=days)
+        end_date = datetime.now(timezone.utc) + timedelta(days=days)
         query = TaskQuery(
             status=[TaskStatus.TODO, TaskStatus.IN_PROGRESS],
-            due_after=datetime.utcnow(),
+            due_after=datetime.now(timezone.utc),
             due_before=end_date,
             assigned_to=user_id,
         )
@@ -289,7 +289,7 @@ class TaskManager:
             return await self.analytics.get_productivity_metrics(user_id, days)
 
         # Basic metrics calculation
-        start_date = datetime.utcnow() - timedelta(days=days)
+        start_date = datetime.now(timezone.utc) - timedelta(days=days)
         query = TaskQuery(assigned_to=user_id, created_after=start_date)
         tasks = await self.search_tasks(query, user_id)
 
@@ -395,7 +395,7 @@ class TaskManager:
         self, project_id: Optional[str] = None, older_than_days: int = 30
     ) -> int:
         """Archive old completed tasks"""
-        cutoff_date = datetime.utcnow() - timedelta(days=older_than_days)
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=older_than_days)
         query = TaskQuery(
             status=[TaskStatus.DONE], project_id=project_id, created_before=cutoff_date
         )

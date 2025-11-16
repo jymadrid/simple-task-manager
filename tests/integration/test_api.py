@@ -3,7 +3,7 @@ Integration tests for API endpoints
 """
 
 from datetime import datetime
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -38,25 +38,38 @@ class TestTaskAPI:
     @pytest.mark.asyncio
     async def test_create_task(self, api_client, auth_headers, monkeypatch):
         """Test task creation via API"""
+        # Mock get_current_user and dependencies first
+        mock_user = Mock(spec=User)
+        mock_user.id = "test-user-id"
+        mock_user.username = "testuser"
+        mock_user.email = "test@example.com"
+
         # Mock the task manager
         mock_manager = AsyncMock()
         mock_task = Task(
+            id="test-task-id",
             title="API Test Task",
             description="Created via API",
             priority=TaskPriority.HIGH,
         )
         mock_manager.create_task.return_value = mock_task
+        mock_manager.get_user.return_value = mock_user
 
         # Mock get_manager function
         monkeypatch.setattr("taskforge.api.get_manager", lambda: mock_manager)
 
-        # Mock get_current_user
-        mock_user = User.create_user("testuser", "test@example.com", "password")
-
-        async def mock_get_current_user(credentials):
+        async def mock_get_current_user(credentials=None):
             return mock_user
 
         monkeypatch.setattr("taskforge.api.get_current_user", mock_get_current_user)
+
+        # Mock auth manager
+        async def mock_verify_token(token):
+            return mock_user.id
+
+        mock_auth_mgr = AsyncMock()
+        mock_auth_mgr.verify_token_async = mock_verify_token
+        monkeypatch.setattr("taskforge.api.get_auth_manager", lambda: mock_auth_mgr)
 
         task_data = {
             "title": "API Test Task",

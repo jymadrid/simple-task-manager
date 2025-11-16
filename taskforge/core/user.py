@@ -2,7 +2,7 @@
 User management and authentication
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set
 from uuid import uuid4
@@ -268,7 +268,7 @@ class User(BaseModel):
 
     def update_last_login(self) -> None:
         """Update last login timestamp"""
-        self.last_login = datetime.utcnow()
+        self.last_login = datetime.now(timezone.utc)
 
     def join_team(self, project_id: str) -> None:
         """Add user to project team"""
@@ -322,7 +322,7 @@ class User(BaseModel):
         """Log user activity"""
         entry = {
             "action": action,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "data": data or {},
         }
         self.activity_log.append(entry)

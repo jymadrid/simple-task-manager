@@ -7,7 +7,7 @@ import logging
 import smtplib
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from enum import Enum
@@ -65,7 +65,7 @@ class Notification:
 
     def __post_init__(self):
         if self.created_at is None:
-            self.created_at = datetime.utcnow()
+            self.created_at = datetime.now(timezone.utc)
         if self.metadata is None:
             self.metadata = {}
 
@@ -264,7 +264,7 @@ class NotificationManager:
                     results[channel_name] = success
 
                     if success:
-                        notification.sent_at = datetime.utcnow()
+                        notification.sent_at = datetime.now(timezone.utc)
                 except Exception as e:
                     logger.error(f"Failed to send notification via {channel_name}: {e}")
                     results[channel_name] = False
@@ -363,7 +363,7 @@ class NotificationManager:
             html_content = self._replace_variables(template.body_html, context)
 
         return Notification(
-            id=f"notif_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{recipient_id}",
+            id=f"notif_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_{recipient_id}",
             recipient_id=recipient_id,
             notification_type=notification_type,
             subject=subject,

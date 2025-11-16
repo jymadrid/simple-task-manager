@@ -3,7 +3,7 @@ Modern CLI interface using Typer
 """
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 
 import typer
@@ -414,7 +414,7 @@ def show_dashboard():
                     f"\n[red]⚠️ You have {len(overdue_tasks)} overdue tasks![/red]"
                 )
                 for task in overdue_tasks[:3]:  # Show first 3
-                    days_overdue = (datetime.utcnow() - task.due_date).days
+                    days_overdue = (datetime.now(timezone.utc) - task.due_date).days
                     console.print(f"  • {task.title} ({days_overdue} days overdue)")
 
             # Upcoming tasks
