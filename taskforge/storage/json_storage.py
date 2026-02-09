@@ -21,14 +21,19 @@ from taskforge.utils.performance import async_timer, time_function
 class JSONStorage(StorageBackend):
     """JSON file-based storage implementation with performance optimizations"""
 
-    def __init__(self, data_directory: str = "./data", save_delay: float = 0.5):
+    def __init__(self, data_directory: str = "./data", save_delay: float = 0.5, cache_size: int = 1000):
         self.data_dir = Path(data_directory)
         self.tasks_file = self.data_dir / "tasks.json"
         self.projects_file = self.data_dir / "projects.json"
         self.users_file = self.data_dir / "users.json"
 
-        # In-memory caches for performance
-        self._tasks_cache: Dict[str, Task] = {}
+        # Lazy loading configuration
+        self.max_cache_size = cache_size
+        self.lazy_load_enabled = True
+
+        # In-memory caches with LRU for memory efficiency
+        from collections import OrderedDict
+        self._tasks_cache: OrderedDict[str, Task] = OrderedDict()
         self._projects_cache: Dict[str, Project] = {}
         self._users_cache: Dict[str, User] = {}
         self._cache_loaded = False
@@ -48,6 +53,7 @@ class JSONStorage(StorageBackend):
         self._task_priority_index: Dict[str, set[str]] = {}
         self._task_project_index: Dict[str, set[str]] = {}
         self._task_assignee_index: Dict[Optional[str], set[str]] = {}
+        self._task_tags_index: Dict[str, set[str]] = {}
         self._task_tags_index: Dict[str, set[str]] = {}
 
         # Performance monitoring
@@ -319,12 +325,54 @@ class JSONStorage(StorageBackend):
         return task
 
     async def get_task(self, task_id: str) -> Optional[Task]:
-        """Get a task by ID"""
+        """Get a task by ID with lazy loading and LRU cache management"""
+        # Check cache first
+        if task_id in self._tasks_cache:
+            # Move to end for LRU
+            self._tasks_cache.move_to_end(task_id)
+            self._cache_hits += 1
+            return self._tasks_cache[task_id]
+        
+        # Load from disk if not in cache (lazy loading)
+        if self.lazy_load_enabled:
+            task = await self._load_task_from_disk(task_id)
+            if task:
+                # Add to cache with LRU management
+                await self._manage_task_cache_size()
+                self._tasks_cache[task_id] = task
+                self._cache_misses += 1
+                return task
+        
+        # Fallback to full cache load if lazy loading fails or disabled
         if not self._cache_loaded:
             await self._load_cache()
+            if task_id in self._tasks_cache:
+                self._cache_hits += 1
+                return self._tasks_cache[task_id]
 
-        self._cache_hits += 1 if task_id in self._tasks_cache else self._cache_misses
-        return self._tasks_cache.get(task_id)
+        self._cache_misses += 1
+        return None
+
+    async def _load_task_from_disk(self, task_id: str) -> Optional[Task]:
+        """Load a single task from disk without loading entire cache"""
+        try:
+            async with aiofiles.open(self.tasks_file, "r") as f:
+                content = await f.read()
+                tasks_data = json.loads(content)
+                for task_data in tasks_data:
+                    if task_data.get("id") == task_id:
+                        return Task(**task_data)
+        except (FileNotFoundError, json.JSONDecodeError, Exception):
+            pass
+        return None
+
+    async def _manage_task_cache_size(self) -> None:
+        """Manage cache size with LRU eviction"""
+        while len(self._tasks_cache) >= self.max_cache_size:
+            # Remove oldest item (LRU)
+            oldest_key, oldest_task = self._tasks_cache.popitem(last=False)
+            # Remove from indexes if needed
+            self._remove_task_from_indexes(oldest_task)
 
     async def update_task(self, task: Task) -> Task:
         """Update an existing task"""

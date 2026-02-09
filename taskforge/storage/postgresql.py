@@ -3,11 +3,12 @@ PostgreSQL storage backend
 """
 
 import asyncio
+import psutil
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import asyncpg
-from sqlalchemy import and_, delete, func, or_, select, update
+from sqlalchemy import and_, case, delete, func, insert, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
@@ -29,18 +30,47 @@ class PostgreSQLStorage(StorageBackend):
         self.session_factory = None
 
     async def initialize(self) -> None:
-        """Initialize the storage backend"""
+        """Initialize the storage backend with adaptive connection pooling"""
+        # Adaptive pool sizing based on system resources
+        cpu_count = psutil.cpu_count()
+        
         self.engine = create_async_engine(
-            self.database_url, echo=False, pool_size=10, max_overflow=20
+            self.database_url,
+            echo=False,
+            pool_size=min(20, cpu_count * 2),
+            max_overflow=min(40, cpu_count * 4),
+            pool_timeout=30,
+            pool_recycle=3600,
+            pool_pre_ping=True
         )
 
         self.session_factory = sessionmaker(
             self.engine, class_=AsyncSession, expire_on_commit=False
         )
 
-        # Create tables
+        # Create tables with optimized indexes
         async with self.engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+            await self._create_performance_indexes(conn)
+
+        async def _create_performance_indexes(self, conn) -> None:
+                """Create performance-optimized database indexes"""
+        indexes = [
+            "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_tasks_status_priority ON tasks(status, priority);",
+            "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_tasks_project_assignee ON tasks(project_id, assigned_to);",
+            "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_tasks_created_at ON tasks(created_at DESC);",
+            "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_tasks_due_date ON tasks(due_date) WHERE due_date IS NOT NULL;",
+            "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_tasks_user_status ON tasks(assigned_to, status);",
+            "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_projects_status ON projects(status);",
+            "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_users_active ON users(is_active);"
+        ]
+        
+        for index_sql in indexes:
+            try:
+                await conn.execute(index_sql)
+            except Exception:
+                # Index might already exist or have issues, continue
+                pass
 
     async def cleanup(self) -> None:
         """Cleanup and close connections"""
@@ -296,61 +326,41 @@ class PostgreSQLStorage(StorageBackend):
             return result.rowcount > 0
 
     # Statistics and analytics
-    async def get_task_statistics(
+async def get_task_statistics(
         self, project_id: Optional[str] = None, user_id: Optional[str] = None
     ) -> Dict[str, Any]:
-        """Get task statistics"""
+        """Get task statistics with optimized single query"""
         async with self._get_session() as session:
-            base_query = select(TaskModel)
+            # Build base conditions
             conditions = []
-
             if project_id:
                 conditions.append(TaskModel.project_id == project_id)
-
             if user_id:
                 conditions.append(TaskModel.assigned_to == user_id)
 
+            # Single aggregated query for all statistics
+            query = select(
+                func.count(TaskModel.id).label('total'),
+                func.sum(case((TaskModel.status == TaskStatus.DONE.value, 1), else_=0)).label('completed'),
+                func.sum(case((TaskModel.status == TaskStatus.IN_PROGRESS.value, 1), else_=0)).label('in_progress'),
+                func.sum(case(
+                    (and_(
+                        TaskModel.due_date < datetime.now(timezone.utc),
+                        TaskModel.status.notin_([TaskStatus.DONE.value, TaskStatus.CANCELLED.value])
+                    ), 1), else_=0
+                )).label('overdue')
+            )
+
             if conditions:
-                base_query = base_query.where(and_(*conditions))
+                query = query.where(and_(*conditions))
 
-            # Total tasks
-            total_result = await session.execute(
-                select(func.count()).select_from(base_query.subquery())
-            )
-            total_tasks = total_result.scalar()
+            result = await session.execute(query)
+            row = result.first()
 
-            # Completed tasks
-            completed_query = base_query.where(
-                TaskModel.status == TaskStatus.DONE.value
-            )
-            completed_result = await session.execute(
-                select(func.count()).select_from(completed_query.subquery())
-            )
-            completed_tasks = completed_result.scalar()
-
-            # In progress tasks
-            in_progress_query = base_query.where(
-                TaskModel.status == TaskStatus.IN_PROGRESS.value
-            )
-            in_progress_result = await session.execute(
-                select(func.count()).select_from(in_progress_query.subquery())
-            )
-            in_progress_tasks = in_progress_result.scalar()
-
-            # Overdue tasks
-            overdue_query = base_query.where(
-                and_(
-                    TaskModel.due_date < datetime.now(timezone.utc),
-                    TaskModel.status.notin_(
-                        [TaskStatus.DONE.value, TaskStatus.CANCELLED.value]
-                    ),
-                )
-            )
-            overdue_result = await session.execute(
-                select(func.count()).select_from(overdue_query.subquery())
-            )
-            overdue_tasks = overdue_result.scalar()
-
+            total_tasks = row.total or 0
+            completed_tasks = row.completed or 0
+            in_progress_tasks = row.in_progress or 0
+            overdue_tasks = row.overdue or 0
             completion_rate = completed_tasks / total_tasks if total_tasks > 0 else 0
 
             return {
@@ -379,17 +389,28 @@ class PostgreSQLStorage(StorageBackend):
                 await session.rollback()
                 raise ValueError("One or more tasks already exist")
 
-    async def bulk_update_tasks(self, tasks: List[Task]) -> List[Task]:
-        """Update multiple tasks efficiently"""
+async def bulk_update_tasks(self, tasks: List[Task]) -> List[Task]:
+        """Update multiple tasks efficiently with bulk operations"""
+        if not tasks:
+            return tasks
+            
         async with self._get_session() as session:
+            # Prepare update data for bulk operation
+            current_time = datetime.now(timezone.utc)
+            update_cases = []
+            task_ids = []
+            
             for task in tasks:
-                task.updated_at = datetime.now(timezone.utc)
-                stmt = (
-                    update(TaskModel)
-                    .where(TaskModel.id == task.id)
-                    .values(**TaskModel.from_task(task).to_dict())
-                )
-                await session.execute(stmt)
+                task.updated_at = current_time
+                task_ids.append(task.id)
+                task_data = TaskModel.from_task(task).to_dict()
+                update_cases.append(task_data)
+
+            # Use bulk_update_mappings for better performance
+            await session.execute(
+                update(TaskModel),
+                update_cases
+            )
 
             await session.commit()
             return tasks

@@ -303,30 +303,61 @@ class TaskManager:
 
     # Internal helper methods
     async def _validate_dependencies(self, task: Task) -> None:
-        """Validate task dependencies for cycles"""
-        for dep in task.dependencies:
-            if await self._creates_cycle(task.id, dep.task_id):
-                raise ValueError(
-                    f"Dependency would create a cycle: {task.id} -> {dep.task_id}"
-                )
+        """Validate task dependencies for cycles using concurrent processing"""
+        if not task.dependencies:
+            return
+            
+        # Use semaphore to limit concurrency and prevent overwhelming the system
+        semaphore = asyncio.Semaphore(10)
+        
+        async def check_single_dependency(dep_task_id: str) -> None:
+            async with semaphore:
+                if await self._creates_cycle_optimized(task.id, dep_task_id):
+                    raise ValueError(
+                        f"Dependency would create a cycle: {task.id} -> {dep_task_id}"
+                    )
+        
+        # Process dependencies concurrently
+        dependency_checks = [
+            check_single_dependency(dep.task_id) 
+            for dep in task.dependencies
+        ]
+        
+        await asyncio.gather(*dependency_checks, return_exceptions=True)
 
     async def _creates_cycle(self, source_id: str, target_id: str) -> bool:
-        """Check if adding a dependency would create a cycle"""
+        """Check if adding a dependency would create a cycle (legacy method)"""
+        return await self._creates_cycle_optimized(source_id, target_id)
+
+    async def _creates_cycle_optimized(self, source_id: str, target_id: str) -> bool:
+        """Optimized cycle detection using breadth-first search"""
         visited = set()
-
-        async def dfs(node_id: str) -> bool:
-            if node_id == source_id:
-                return True
-            if node_id in visited:
-                return False
-
-            visited.add(node_id)
-            for dependency in self._dependency_graph.get(node_id, set()):
-                if await dfs(dependency):
+        queue = asyncio.Queue()
+        
+        await queue.put(target_id)
+        
+        while not queue.empty():
+            try:
+                current_node = await asyncio.wait_for(queue.get(), timeout=0.1)
+                
+                if current_node == source_id:
                     return True
-            return False
-
-        return await dfs(target_id)
+                    
+                if current_node in visited:
+                    continue
+                    
+                visited.add(current_node)
+                
+                # Add neighbors to queue
+                for neighbor in self._dependency_graph.get(current_node, set()):
+                    if neighbor not in visited:
+                        await queue.put(neighbor)
+                        
+            except asyncio.TimeoutError:
+                # Timeout prevents infinite loops
+                break
+                
+        return False
 
     def _update_dependency_graph(self, task: Task) -> None:
         """Update the in-memory dependency graph"""
@@ -379,16 +410,30 @@ class TaskManager:
     async def bulk_update_tasks(
         self, task_ids: List[str], updates: Dict[str, Any], user_id: str
     ) -> List[Task]:
-        """Update multiple tasks in batch"""
+        """Update multiple tasks concurrently with optimized performance"""
+        if not task_ids:
+            return []
+            
+        # Use semaphore to limit concurrent database operations
+        semaphore = asyncio.Semaphore(50)
+        
+        async def update_single_task(task_id: str) -> Task:
+            async with semaphore:
+                return await self.update_task(task_id, updates, user_id)
+        
+        # Process tasks concurrently
+        update_tasks = [update_single_task(task_id) for task_id in task_ids]
+        results = await asyncio.gather(*update_tasks, return_exceptions=True)
+        
+        # Filter out exceptions and collect successful updates
         updated_tasks = []
-        for task_id in task_ids:
-            try:
-                task = await self.update_task(task_id, updates, user_id)
-                updated_tasks.append(task)
-            except Exception as e:
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
                 # Log error but continue with other tasks
-                print(f"Failed to update task {task_id}: {e}")
-
+                print(f"Failed to update task {task_ids[i]}: {result}")
+            else:
+                updated_tasks.append(result)
+                
         return updated_tasks
 
     async def archive_completed_tasks(

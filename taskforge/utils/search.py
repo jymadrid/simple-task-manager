@@ -4,16 +4,29 @@ Advanced search engine for TaskForge
 
 import asyncio
 import logging
-import re
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
-from taskforge.core.project import Project
-from taskforge.core.task import Task, TaskPriority, TaskStatus, TaskType
-from taskforge.core.user import User
+# Lazy imports for better startup performance
+def _get_core_models():
+    """Lazy import core models"""
+    from taskforge.core.project import Project
+    from taskforge.core.task import Task, TaskPriority, TaskStatus, TaskType
+    from taskforge.core.user import User
+    return Project, Task, TaskPriority, TaskStatus, TaskType, User
+
+def _get_re_module():
+    """Lazy import regex module"""
+    import re
+    return re
+
+def _get_statistics_module():
+    """Lazy import statistics module"""
+    import statistics
+    return statistics
 
 logger = logging.getLogger(__name__)
 

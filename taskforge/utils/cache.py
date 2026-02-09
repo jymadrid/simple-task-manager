@@ -3,12 +3,111 @@ Advanced caching utilities for TaskForge
 """
 
 import asyncio
+import sys
 import time
 from collections import OrderedDict
 from functools import wraps
 from typing import Any, Callable, Dict, Optional, TypeVar
 
 T = TypeVar("T")
+
+
+class MemoryEfficientLRUCache:
+    """
+    Memory-efficient LRU Cache with size and memory limits
+    Monitors memory usage and evicts items based on memory pressure
+    """
+
+    def __init__(self, max_size: int = 1000, max_memory_mb: int = 100, ttl: Optional[float] = None):
+        """
+        Initialize memory-efficient LRU cache
+
+        Args:
+            max_size: Maximum number of items to cache
+            max_memory_mb: Maximum memory usage in MB
+            ttl: Time to live in seconds (None for no expiration)
+        """
+        self.max_size = max_size
+        self.max_memory_bytes = max_memory_mb * 1024 * 1024
+        self.ttl = ttl
+        self._cache: OrderedDict[str, tuple[Any, float, int]] = OrderedDict()  # key -> (value, timestamp, size)
+        self._current_memory = 0
+        self._lock = asyncio.Lock()
+        self._hits = 0
+        self._misses = 0
+
+    async def get(self, key: str) -> Optional[Any]:
+        """Get value from cache with memory management"""
+        async with self._lock:
+            if key not in self._cache:
+                self._misses += 1
+                return None
+
+            value, timestamp, size = self._cache[key]
+
+            # Check TTL
+            if self.ttl and (time.time() - timestamp) > self.ttl:
+                del self._cache[key]
+                self._current_memory -= size
+                self._misses += 1
+                return None
+
+            # Move to end (most recently used)
+            self._cache.move_to_end(key)
+            self._hits += 1
+            return value
+
+    async def set(self, key: str, value: Any) -> None:
+        """Set value in cache with memory pressure handling"""
+        async with self._lock:
+            # Estimate memory usage
+            value_size = sys.getsizeof(value)
+            
+            # Evict existing key if present
+            if key in self._cache:
+                _, _, old_size = self._cache.pop(key)
+                self._current_memory -= old_size
+
+            # Evict if necessary based on size or memory limits
+            while (len(self._cache) >= self.max_size or 
+                   self._current_memory + value_size > self.max_memory_bytes):
+                if not self._cache:
+                    break
+                oldest_key, (_, _, oldest_size) = self._cache.popitem(last=False)
+                self._current_memory -= oldest_size
+
+            self._cache[key] = (value, time.time(), value_size)
+            self._current_memory += value_size
+
+    async def delete(self, key: str) -> bool:
+        """Delete key from cache"""
+        async with self._lock:
+            if key in self._cache:
+                _, _, size = self._cache.pop(key)
+                self._current_memory -= size
+                return True
+            return False
+
+    async def clear(self) -> None:
+        """Clear all cache entries"""
+        async with self._lock:
+            self._cache.clear()
+            self._current_memory = 0
+
+    def get_stats(self) -> Dict[str, Any]:
+        """Get cache statistics"""
+        total_requests = self._hits + self._misses
+        hit_rate = self._hits / total_requests if total_requests > 0 else 0
+        
+        return {
+            "hits": self._hits,
+            "misses": self._misses,
+            "hit_rate": hit_rate,
+            "size": len(self._cache),
+            "memory_bytes": self._current_memory,
+            "memory_mb": self._current_memory / (1024 * 1024),
+            "max_memory_mb": self.max_memory_bytes / (1024 * 1024)
+        }
 
 
 class LRUCache:
