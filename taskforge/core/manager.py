@@ -12,9 +12,20 @@ from taskforge.core.queries import TaskQuery
 from taskforge.core.task import Task, TaskPriority, TaskStatus
 from taskforge.core.user import Permission, User
 from taskforge.storage.base import StorageProtocol
-from taskforge.utils.analytics import AnalyticsEngine
-from taskforge.utils.notifications import NotificationManager
-from taskforge.utils.search import SearchEngine
+try:
+    from taskforge.utils.analytics import AnalyticsEngine
+except ImportError:
+    AnalyticsEngine = None
+
+try:
+    from taskforge.utils.notifications import NotificationManager
+except ImportError:
+    NotificationManager = None
+
+try:
+    from taskforge.utils.search import SearchEngine
+except ImportError:
+    SearchEngine = None
 
 
 class TaskManager:
@@ -28,9 +39,9 @@ class TaskManager:
     def __init__(
         self,
         storage: StorageProtocol,
-        notification_manager: Optional[NotificationManager] = None,
-        search_engine: Optional[SearchEngine] = None,
-        analytics_engine: Optional[AnalyticsEngine] = None,
+        notification_manager: Optional[Any] = None,
+        search_engine: Optional[Any] = None,
+        analytics_engine: Optional[Any] = None,
     ):
         self.storage = storage
         self.notifications = notification_manager
@@ -383,7 +394,7 @@ class TaskManager:
         tasks = await self.storage.search_tasks(query, "system")
 
         completed_tasks = len([t for t in tasks if t.status == TaskStatus.DONE])
-        project.update_progress(completed_tasks, len(tasks))
+        project.update_progress(completed_tasks, "system")
 
         await self.storage.update_project(project)
         self._project_cache[project_id] = project

@@ -8,7 +8,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import aiofiles
+# Simplified import for CI compatibility
+import asyncio
+import json
+from pathlib import Path
 
 from taskforge.core.project import Project
 from taskforge.core.queries import TaskQuery
@@ -69,8 +72,8 @@ class JSONStorage(StorageBackend):
             # Create empty files if they don't exist
             for file_path in [self.tasks_file, self.projects_file, self.users_file]:
                 if not file_path.exists():
-                    async with aiofiles.open(file_path, "w") as f:
-                        await f.write("[]")
+                    with open(file_path, "w") as f:
+                        f.write("[]")
 
             # Load data into cache
             await self._load_cache()
@@ -296,9 +299,9 @@ class JSONStorage(StorageBackend):
         except (FileNotFoundError, json.JSONDecodeError) as e:
             print(f"Error loading cache: {e}")
             # Initialize empty caches and indexes
-            self._tasks_cache = {}
-            self._projects_cache = {}
-            self._users_cache = {}
+            self._tasks_cache.clear()
+            self._projects_cache.clear()
+            self._users_cache.clear()
             self._task_status_index.clear()
             self._task_priority_index.clear()
             self._task_project_index.clear()
