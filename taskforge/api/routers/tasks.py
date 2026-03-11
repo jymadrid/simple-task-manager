@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from taskforge.api.dependencies import get_current_user, get_task_manager
 from taskforge.api.schemas import TaskCreate, TaskPublic, TaskUpdate
-from taskforge.core.manager import TaskManager, TaskQuery
+from taskforge.core.manager import TaskManager
+from taskforge.core.queries import TaskQuery
 from taskforge.core.task import Task
 from taskforge.core.user import User
 
