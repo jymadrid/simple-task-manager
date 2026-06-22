@@ -1,38 +1,29 @@
-"""Storage package initialization"""
+"""Storage package public exports."""
+
+from typing import Any
 
 from .base import StorageBackend
 
-# Try to import optimized storage, fallback to simple version
+JSONStorage: Any
 try:
     from .json_storage import JSONStorage
-    from .json_storage import JSONStorage as JsonStorage
 except ImportError:
     from .simple_json_storage import SimpleJSONStorage as JSONStorage
-    from .simple_json_storage import SimpleJSONStorage as JsonStorage
 
-# Initialize __all__
-__all__ = ["StorageBackend", "JsonStorage", "JSONStorage"]
+JsonStorage = JSONStorage
 
-# Optional imports - only load if dependencies are available
+PostgreSQLStorage: Any
 try:
     from .postgresql import PostgreSQLStorage
-    __all__.extend(["PostgreSQLStorage"])
 except ImportError:
     try:
-        from .simple_postgresql_storage import SimplePostgreSQLStorage as PostgreSQLStorage
-        __all__.extend(["PostgreSQLStorage"])
+        from .simple_postgresql_storage import (
+            SimplePostgreSQLStorage as PostgreSQLStorage,
+        )
     except ImportError:
-        pass
+        PostgreSQLStorage = None
 
-# Optional imports - only load if dependencies are available
-__all__ = ["StorageBackend", "JsonStorage", "JSONStorage"]
+__all__ = ["StorageBackend", "JSONStorage", "JsonStorage"]
 
-try:
-    from .postgresql import PostgreSQLStorage
-    __all__.extend(["PostgreSQLStorage"])
-except ImportError:
-    try:
-        from .simple_postgresql_storage import SimplePostgreSQLStorage as PostgreSQLStorage
-        __all__.extend(["PostgreSQLStorage"])
-    except ImportError:
-        pass
+if PostgreSQLStorage is not None:
+    __all__.append("PostgreSQLStorage")

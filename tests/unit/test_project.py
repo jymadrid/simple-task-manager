@@ -52,6 +52,17 @@ class TestProject:
         assert len(project.activity_log) == 1
         assert project.activity_log[0]["action"] == "status_changed"
 
+    def test_project_status_updates_handle_string_status_values(self):
+        """Status logging should tolerate persisted string status values."""
+        project = Project(
+            name="Persisted Project", owner_id="user-123", status="planning"
+        )
+
+        project.update_status(ProjectStatus.ACTIVE, "user-456")
+
+        assert project.activity_log[0]["data"]["old_status"] == "planning"
+        assert project.activity_log[0]["data"]["new_status"] == "active"
+
     def test_team_member_management(self):
         """Test team member addition and removal"""
         project = Project(name="Test Project", owner_id="user-123")
@@ -295,6 +306,13 @@ class TestProject:
         assert not project.is_archived()
         assert project.status == ProjectStatus.ACTIVE
 
+        persisted_project = Project(
+            name="Persisted Archived Project",
+            owner_id="user-123",
+            status="archived",
+        )
+        assert persisted_project.is_archived()
+
     def test_project_role_management(self):
         """Test project-specific role management"""
         project = Project(name="Test Project", owner_id="user-123")
@@ -327,6 +345,29 @@ class TestProject:
 
         assert project2.days_until_deadline() == -2
         assert project2.is_overdue()
+
+        completed = Project(
+            name="Completed",
+            owner_id="user-123",
+            end_date=past_end,
+            status="completed",
+        )
+        cancelled = Project(
+            name="Cancelled",
+            owner_id="user-123",
+            end_date=past_end,
+            status="cancelled",
+        )
+        archived = Project(
+            name="Archived",
+            owner_id="user-123",
+            end_date=past_end,
+            status="archived",
+        )
+
+        assert not completed.is_overdue()
+        assert not cancelled.is_overdue()
+        assert not archived.is_overdue()
 
     def test_project_statistics(self):
         """Test project statistics calculation"""

@@ -83,6 +83,41 @@ class TestTaskManager:
         assert updated_task.title == "Updated Task Title"
         assert updated_task.status == TaskStatus.IN_PROGRESS
         assert updated_task.progress == 50
+        assert any(
+            entry["action"] == "status_changed"
+            and entry["data"]["new_status"] == TaskStatus.IN_PROGRESS.value
+            for entry in updated_task.activity_log
+        )
+
+    @pytest.mark.asyncio
+    async def test_update_task_done_sets_completion_metadata(
+        self, task_manager: TaskManager, sample_task: Task, sample_user: User
+    ):
+        """Updating a task to done should set progress, completion time, and log."""
+        updated_task = await task_manager.update_task(
+            sample_task.id, {"status": TaskStatus.DONE}, sample_user.id
+        )
+
+        assert updated_task.status == TaskStatus.DONE
+        assert updated_task.progress == 100
+        assert updated_task.completed_at is not None
+        assert any(
+            entry["action"] == "status_changed"
+            and entry["data"]["new_status"] == TaskStatus.DONE.value
+            for entry in updated_task.activity_log
+        )
+
+    @pytest.mark.asyncio
+    async def test_update_task_progress_to_100_completes_task(
+        self, task_manager: TaskManager, sample_task: Task, sample_user: User
+    ):
+        """Updating progress to 100 should use task domain completion semantics."""
+        updated_task = await task_manager.update_task(
+            sample_task.id, {"progress": 100}, sample_user.id
+        )
+
+        assert updated_task.status == TaskStatus.DONE
+        assert updated_task.completed_at is not None
 
     @pytest.mark.asyncio
     async def test_update_nonexistent_task(
@@ -311,6 +346,22 @@ class TestTaskManager:
             )
 
     @pytest.mark.asyncio
+    async def test_dependency_validation_rejects_missing_task(
+        self, task_manager: TaskManager, sample_user: User, sample_project: Project
+    ):
+        """Test dependency validation rejects unknown dependency IDs."""
+        task = Task(title="Task with Missing Dependency", project_id=sample_project.id)
+        created_task = await task_manager.create_task(task, sample_user.id)
+        created_task.add_dependency("missing-task-id", "blocks")
+
+        with pytest.raises(ValueError, match="not found"):
+            await task_manager.update_task(
+                created_task.id,
+                {"dependencies": created_task.dependencies},
+                sample_user.id,
+            )
+
+    @pytest.mark.asyncio
     async def test_project_progress_update(
         self, task_manager: TaskManager, sample_user: User, sample_project: Project
     ):
@@ -328,11 +379,11 @@ class TestTaskManager:
             tasks[1].id, {"status": TaskStatus.DONE}, sample_user.id
         )
 
-        # Check project progress (task_count may be 0 if not implemented)
+        # Check project progress and counts.
         updated_project = await task_manager.get_project(sample_project.id)
-        assert updated_project.progress == 2  # 2 completed tasks
-        # task_count might not be automatically updated, so just check progress
-        assert updated_project.progress >= 2
+        assert updated_project.task_count == 4
+        assert updated_project.completed_task_count == 2
+        assert updated_project.progress == 50
 
     @pytest.mark.asyncio
     async def test_caching(self, task_manager: TaskManager, sample_task: Task):

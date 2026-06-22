@@ -7,7 +7,7 @@ import sys
 import time
 from collections import OrderedDict
 from functools import wraps
-from typing import Any, Callable, Dict, Optional, TypeVar
+from typing import Any, Awaitable, Callable, Dict, List, Optional, TypeVar
 
 T = TypeVar("T")
 
@@ -18,7 +18,12 @@ class MemoryEfficientLRUCache:
     Monitors memory usage and evicts items based on memory pressure
     """
 
-    def __init__(self, max_size: int = 1000, max_memory_mb: int = 100, ttl: Optional[float] = None):
+    def __init__(
+        self,
+        max_size: int = 1000,
+        max_memory_mb: int = 100,
+        ttl: Optional[float] = None,
+    ):
         """
         Initialize memory-efficient LRU cache
 
@@ -30,7 +35,9 @@ class MemoryEfficientLRUCache:
         self.max_size = max_size
         self.max_memory_bytes = max_memory_mb * 1024 * 1024
         self.ttl = ttl
-        self._cache: OrderedDict[str, tuple[Any, float, int]] = OrderedDict()  # key -> (value, timestamp, size)
+        self._cache: OrderedDict[str, tuple[Any, float, int]] = (
+            OrderedDict()
+        )  # key -> (value, timestamp, size)
         self._current_memory = 0
         self._lock = asyncio.Lock()
         self._hits = 0
@@ -62,15 +69,17 @@ class MemoryEfficientLRUCache:
         async with self._lock:
             # Estimate memory usage
             value_size = sys.getsizeof(value)
-            
+
             # Evict existing key if present
             if key in self._cache:
                 _, _, old_size = self._cache.pop(key)
                 self._current_memory -= old_size
 
             # Evict if necessary based on size or memory limits
-            while (len(self._cache) >= self.max_size or 
-                   self._current_memory + value_size > self.max_memory_bytes):
+            while (
+                len(self._cache) >= self.max_size
+                or self._current_memory + value_size > self.max_memory_bytes
+            ):
                 if not self._cache:
                     break
                 oldest_key, (_, _, oldest_size) = self._cache.popitem(last=False)
@@ -98,7 +107,7 @@ class MemoryEfficientLRUCache:
         """Get cache statistics"""
         total_requests = self._hits + self._misses
         hit_rate = self._hits / total_requests if total_requests > 0 else 0
-        
+
         return {
             "hits": self._hits,
             "misses": self._misses,
@@ -106,7 +115,7 @@ class MemoryEfficientLRUCache:
             "size": len(self._cache),
             "memory_bytes": self._current_memory,
             "memory_mb": self._current_memory / (1024 * 1024),
-            "max_memory_mb": self.max_memory_bytes / (1024 * 1024)
+            "max_memory_mb": self.max_memory_bytes / (1024 * 1024),
         }
 
 
@@ -199,17 +208,20 @@ class AsyncCachedProperty:
     Decorator for caching async property values
     """
 
-    def __init__(self, func: Callable):
+    def __init__(self, func: Callable[[Any], Awaitable[Any]]) -> None:
         self.func = func
-        self.attrname = None
+        self.attrname: Optional[str] = None
         self.__doc__ = func.__doc__
 
-    def __set_name__(self, owner, name):
+    def __set_name__(self, owner: type[Any], name: str) -> None:
         self.attrname = f"_cached_{name}"
 
-    def __get__(self, instance, owner=None):
+    def __get__(self, instance: Any, owner: Optional[type[Any]] = None) -> Any:
         if instance is None:
             return self
+
+        if self.attrname is None:
+            raise AttributeError("Cached property has not been bound to a class")
 
         cache = instance.__dict__.get(self.attrname)
         if cache is None:
@@ -218,7 +230,9 @@ class AsyncCachedProperty:
         return cache
 
 
-def cache_result(max_size: int = 128, ttl: Optional[float] = None):
+def cache_result(
+    max_size: int = 128, ttl: Optional[float] = None
+) -> Callable[[Callable[..., Awaitable[Any]]], Callable[..., Awaitable[Any]]]:
     """
     Decorator to cache function results
 
@@ -228,9 +242,9 @@ def cache_result(max_size: int = 128, ttl: Optional[float] = None):
     """
     cache = LRUCache(max_size=max_size, ttl=ttl)
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: Callable[..., Awaitable[Any]]) -> Callable[..., Awaitable[Any]]:
         @wraps(func)
-        async def wrapper(*args, **kwargs):
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
             # Create cache key from args and kwargs
             key_parts = [str(arg) for arg in args]
             key_parts.extend(f"{k}={v}" for k, v in sorted(kwargs.items()))
@@ -247,8 +261,8 @@ def cache_result(max_size: int = 128, ttl: Optional[float] = None):
             return result
 
         # Attach cache stats method
-        wrapper.cache_stats = cache.get_stats
-        wrapper.cache_clear = cache.clear
+        setattr(wrapper, "cache_stats", cache.get_stats)
+        setattr(wrapper, "cache_clear", cache.clear)
 
         return wrapper
 
@@ -260,10 +274,12 @@ class CacheWarmer:
     Utility for warming up caches with commonly accessed data
     """
 
-    def __init__(self):
-        self._warmup_tasks: list[Callable] = []
+    def __init__(self) -> None:
+        self._warmup_tasks: List[Callable[[], Awaitable[Any]]] = []
 
-    def register(self, func: Callable) -> Callable:
+    def register(
+        self, func: Callable[[], Awaitable[Any]]
+    ) -> Callable[[], Awaitable[Any]]:
         """Register a function for cache warming"""
         self._warmup_tasks.append(func)
         return func

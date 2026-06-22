@@ -3,7 +3,7 @@ Web dashboard using Streamlit
 """
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 import pandas as pd
@@ -13,7 +13,8 @@ import streamlit as st
 
 from taskforge.core.manager import TaskManager, TaskQuery
 from taskforge.core.task import Task, TaskPriority, TaskStatus, TaskType
-from taskforge.storage.json_storage import JsonStorage
+from taskforge.storage.json_storage import JSONStorage
+from taskforge.web.helpers import display_value, ensure_dashboard_user
 
 # Configure Streamlit page
 st.set_page_config(
@@ -25,7 +26,7 @@ st.set_page_config(
 
 # Initialize session state
 if "manager" not in st.session_state:
-    storage = JsonStorage("./data")
+    storage = JSONStorage("./data")
     st.session_state.manager = TaskManager(storage)
 
 if "current_user" not in st.session_state:
@@ -40,7 +41,8 @@ def get_manager() -> TaskManager:
 async def load_dashboard_data() -> Dict[str, Any]:
     """Load all dashboard data"""
     mgr = get_manager()
-    user_id = st.session_state.current_user
+    user = await ensure_dashboard_user(mgr, st.session_state.current_user)
+    user_id = user.id
 
     # Load various data in parallel
     all_tasks_query = TaskQuery(limit=1000)
@@ -64,7 +66,8 @@ def create_task_status_chart(tasks: List[Task]) -> go.Figure:
     """Create task status distribution chart"""
     status_counts = {}
     for task in tasks:
-        status_counts[task.status.value] = status_counts.get(task.status.value, 0) + 1
+        status = display_value(task.status)
+        status_counts[status] = status_counts.get(status, 0) + 1
 
     fig = px.pie(
         values=list(status_counts.values()),
@@ -87,9 +90,8 @@ def create_priority_chart(tasks: List[Task]) -> go.Figure:
     """Create task priority distribution chart"""
     priority_counts = {}
     for task in tasks:
-        priority_counts[task.priority.value] = (
-            priority_counts.get(task.priority.value, 0) + 1
-        )
+        priority = display_value(task.priority)
+        priority_counts[priority] = priority_counts.get(priority, 0) + 1
 
     fig = px.bar(
         x=list(priority_counts.keys()),
@@ -157,8 +159,8 @@ def render_task_table(tasks: List[Task], title: str):
             {
                 "ID": task.id[:8],
                 "Title": task.title,
-                "Status": task.status.value,
-                "Priority": task.priority.value,
+                "Status": display_value(task.status),
+                "Priority": display_value(task.priority),
                 "Progress": f"{task.progress}%",
                 "Due Date": (
                     task.due_date.strftime("%Y-%m-%d")
@@ -285,6 +287,9 @@ def render_tasks_page():
             if submitted and title:
                 try:
                     mgr = get_manager()
+                    user = asyncio.run(
+                        ensure_dashboard_user(mgr, st.session_state.current_user)
+                    )
 
                     # Create task
                     task = Task(
@@ -293,7 +298,9 @@ def render_tasks_page():
                         priority=priority,
                         task_type=TaskType(task_type),
                         due_date=(
-                            datetime.combine(due_date, datetime.min.time())
+                            datetime.combine(
+                                due_date, datetime.min.time(), tzinfo=timezone.utc
+                            )
                             if due_date
                             else None
                         ),
@@ -301,9 +308,7 @@ def render_tasks_page():
                     )
 
                     # Save task
-                    created_task = asyncio.run(
-                        mgr.create_task(task, st.session_state.current_user)
-                    )
+                    created_task = asyncio.run(mgr.create_task(task, user.id))
                     st.success(f"✅ Task created: {created_task.title}")
                     st.experimental_rerun()
 
@@ -324,6 +329,7 @@ def render_tasks_page():
     # Load and display tasks
     try:
         mgr = get_manager()
+        user = asyncio.run(ensure_dashboard_user(mgr, st.session_state.current_user))
         query = TaskQuery(
             status=[TaskStatus(s) for s in status_filter] if status_filter else None,
             priority=(
@@ -333,7 +339,7 @@ def render_tasks_page():
             limit=100,
         )
 
-        tasks = asyncio.run(mgr.search_tasks(query, st.session_state.current_user))
+        tasks = asyncio.run(mgr.search_tasks(query, user.id))
         render_task_table(tasks, f"Tasks ({len(tasks)} found)")
 
     except Exception as e:

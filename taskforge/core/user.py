@@ -7,15 +7,15 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Set
 from uuid import uuid4
 
+from pydantic import BaseModel, ConfigDict, Field
+
+_bcrypt: Any
 try:
-    import bcrypt
+    import bcrypt as _bcrypt
 except ImportError:
-    bcrypt = None
-try:
-    from pydantic import BaseModel, ConfigDict, EmailStr, Field
-except ImportError:
-    from pydantic import BaseModel, ConfigDict, Field
-    EmailStr = str
+    _bcrypt = None
+
+bcrypt: Any = _bcrypt
 
 
 class UserRole(str, Enum):
@@ -129,7 +129,7 @@ class UserProfile(BaseModel):
         }
     )
 
-    def __init__(self, **data):
+    def __init__(self, **data: Any) -> None:
         # Extract social link fields
         social_fields = ["github", "twitter", "linkedin", "facebook"]
         social_links = {}
@@ -187,7 +187,7 @@ class User(BaseModel):
     profile: UserProfile = Field(default_factory=UserProfile)
 
     # Temporal fields
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: Optional[datetime] = None
     last_login: Optional[datetime] = None
 
@@ -200,10 +200,6 @@ class User(BaseModel):
 
     model_config = ConfigDict(
         use_enum_values=True,
-        json_encoders={
-            datetime: lambda v: v.isoformat(),
-            set: list,
-        },
     )
 
     @classmethod
@@ -235,6 +231,7 @@ class User(BaseModel):
         else:
             # Fallback for environments without bcrypt
             import hashlib
+
             password_hash = hashlib.sha256(password.encode()).hexdigest()
         return cls(
             username=username,
@@ -247,14 +244,15 @@ class User(BaseModel):
     def verify_password(self, password: str) -> bool:
         """Verify user password"""
         if bcrypt:
-            return bcrypt.checkpw(
-                password.encode("utf-8"), self.password_hash.encode("utf-8")
+            return bool(
+                bcrypt.checkpw(
+                    password.encode("utf-8"), self.password_hash.encode("utf-8")
+                )
             )
         else:
             # Fallback verification for environments without bcrypt
             import hashlib
-            # Fallback verification for environments without bcrypt
-            import hashlib
+
             return hashlib.sha256(password.encode()).hexdigest() == self.password_hash
 
     def update_password(self, new_password: str) -> None:
@@ -266,6 +264,7 @@ class User(BaseModel):
         else:
             # Fallback for environments without bcrypt
             import hashlib
+
             self.password_hash = hashlib.sha256(new_password.encode()).hexdigest()
         self._log_activity("password_updated")
 

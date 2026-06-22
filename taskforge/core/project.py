@@ -48,7 +48,7 @@ class Project(BaseModel):
     )  # user_id -> role mapping
 
     # Temporal fields
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: Optional[datetime] = None
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
@@ -76,13 +76,9 @@ class Project(BaseModel):
 
     model_config = ConfigDict(
         use_enum_values=True,
-        json_encoders={
-            datetime: lambda v: v.isoformat(),
-            set: list,
-        },
     )
 
-    def __init__(self, **data):
+    def __init__(self, **data: Any) -> None:
         super().__init__(**data)
         # Ensure owner is in team_members
         if self.owner_id not in self.team_members:
@@ -116,8 +112,8 @@ class Project(BaseModel):
         self._log_activity(
             "status_changed",
             {
-                "old_status": old_status.value,
-                "new_status": new_status.value,
+                "old_status": self._enum_value(old_status),
+                "new_status": self._enum_value(new_status),
                 "user_id": user_id,
             },
         )
@@ -245,7 +241,7 @@ class Project(BaseModel):
 
     def is_archived(self) -> bool:
         """Check if project is archived"""
-        return self.status == ProjectStatus.ARCHIVED
+        return self._enum_value(self.status) == ProjectStatus.ARCHIVED.value
 
     def archive(self, user_id: Optional[str] = None) -> None:
         """Archive the project"""
@@ -285,11 +281,15 @@ class Project(BaseModel):
         """Check if project is overdue"""
         if not self.end_date:
             return False
-        return datetime.now(timezone.utc) > self.end_date and self.status not in [
-            ProjectStatus.COMPLETED,
-            ProjectStatus.CANCELLED,
-            ProjectStatus.ARCHIVED,
-        ]
+        terminal_statuses = {
+            ProjectStatus.COMPLETED.value,
+            ProjectStatus.CANCELLED.value,
+            ProjectStatus.ARCHIVED.value,
+        }
+        return (
+            datetime.now(timezone.utc) > self.end_date
+            and self._enum_value(self.status) not in terminal_statuses
+        )
 
     def get_statistics(self) -> Dict[str, Any]:
         """Get project statistics"""
@@ -316,6 +316,11 @@ class Project(BaseModel):
             "data": data,
         }
         self.activity_log.append(entry)
+
+    @staticmethod
+    def _enum_value(value: Any) -> str:
+        """Return a stable string value for enum-like fields."""
+        return str(getattr(value, "value", value))
 
     def __str__(self) -> str:
         status_str = (

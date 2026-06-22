@@ -91,6 +91,36 @@ class TestTaskAPI:
         response = api_client.post("/tasks", json=task_data)
         assert response.status_code == 403  # Forbidden without auth
 
+    def test_demo_auth_creates_task_with_empty_storage(
+        self, tmp_path, auth_headers, monkeypatch
+    ):
+        """Test demo API auth creates a persisted user before task creation."""
+        import taskforge.api as api_module
+
+        monkeypatch.setenv("TASKFORGE_DATA_DIR", str(tmp_path))
+        monkeypatch.setenv("TASKFORGE_DEMO_AUTH", "true")
+        monkeypatch.setattr(api_module, "manager", None)
+        monkeypatch.setattr(api_module, "auth_manager", None)
+        monkeypatch.setattr(api_module, "_storage_initialized", False)
+
+        with TestClient(create_app()) as client:
+            response = client.post(
+                "/tasks",
+                json={"title": "Fresh API Task"},
+                headers=auth_headers,
+            )
+            assert response.status_code == 200
+
+            response_data = response.json()
+            assert response_data["title"] == "Fresh API Task"
+            assert response_data["created_by"] == "test-user-id"
+
+            list_response = client.get("/tasks", headers=auth_headers)
+            assert list_response.status_code == 200
+            assert [task["title"] for task in list_response.json()] == [
+                "Fresh API Task"
+            ]
+
     def test_create_task_invalid_data(self, api_client, auth_headers, monkeypatch):
         """Test task creation with invalid data"""
         # Mock authentication

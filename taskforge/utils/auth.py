@@ -3,13 +3,14 @@ Authentication and authorization utilities
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, cast
 
 import jwt
-from passlib.context import CryptContext
+from passlib.context import CryptContext  # type: ignore[import-untyped]
 
 from taskforge.core.user import User
 from taskforge.utils.config import Config
+from taskforge.utils.values import enum_value
 
 
 class AuthManager:
@@ -26,11 +27,11 @@ class AuthManager:
 
     def hash_password(self, password: str) -> str:
         """Hash a password"""
-        return self.pwd_context.hash(password)
+        return cast(str, self.pwd_context.hash(password))
 
     def verify_password(self, plain_password: str, hashed_password: str) -> bool:
         """Verify a password against its hash"""
-        return self.pwd_context.verify(plain_password, hashed_password)
+        return cast(bool, self.pwd_context.verify(plain_password, hashed_password))
 
     def create_access_token(
         self, data: Dict[str, Any], expires_delta: Optional[timedelta] = None
@@ -54,7 +55,9 @@ class AuthManager:
         """Verify and decode a JWT token"""
         try:
             payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
-            return payload
+            if isinstance(payload, dict):
+                return cast(Dict[str, Any], payload)
+            return None
         except jwt.PyJWTError:
             return None
 
@@ -67,7 +70,8 @@ class AuthManager:
         """Verify token and return user ID"""
         payload = self.verify_token(token)
         if payload:
-            return payload.get("sub")
+            subject = payload.get("sub")
+            return subject if isinstance(subject, str) else None
         return None
 
     def authenticate_user(self, user: User, password: str) -> bool:
@@ -87,5 +91,5 @@ class AuthManager:
             "guest": ["read"],
         }
 
-        allowed_actions = permission_map.get(user.role.value, [])
+        allowed_actions = permission_map.get(enum_value(user.role), [])
         return action in allowed_actions

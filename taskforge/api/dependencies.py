@@ -1,4 +1,5 @@
 import os
+import secrets
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -45,7 +46,9 @@ async def get_current_user() -> User:
     user = await storage.get_user_by_username("testuser")
     if not user:
         user = User.create_user(
-            username="testuser", email="test@example.com", password="password"
+            username="testuser",
+            email="test@example.com",
+            password=secrets.token_urlsafe(32),
         )
         user.id = "user-test-01"  # predictable ID
         await storage.create_user(user)

@@ -84,7 +84,7 @@ async def update_project(
             status_code=403, detail="Only the project owner can update it"
         )
 
-    update_data = project_in.dict(exclude_unset=True)
+    update_data = project_in.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(project, field, value)
 

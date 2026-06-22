@@ -2,6 +2,8 @@
 FastAPI-based REST API
 """
 
+import os
+import secrets
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -18,8 +20,12 @@ from taskforge.core.queries import TaskQuery
 from taskforge.core.task import Task, TaskPriority, TaskStatus, TaskType
 from taskforge.core.user import User, UserRole
 from taskforge.storage.json_storage import JSONStorage
-from taskforge.utils.auth import AuthManager
 from taskforge.utils.config import Config
+
+try:
+    from taskforge.utils.auth import AuthManager
+except ImportError:
+    AuthManager = None
 
 
 # Pydantic models for API
@@ -86,6 +92,7 @@ app.add_middleware(
 # Global instances
 manager: Optional[TaskManager] = None
 auth_manager: Optional[AuthManager] = None
+_storage_initialized = False
 security = HTTPBearer()
 
 
@@ -99,18 +106,63 @@ def get_manager() -> TaskManager:
     return manager
 
 
+async def get_ready_manager() -> TaskManager:
+    """Get a task manager with initialized storage."""
+    global _storage_initialized
+    mgr = get_manager()
+    if not _storage_initialized:
+        await mgr.storage.initialize()
+        _storage_initialized = True
+    return mgr
+
+
 def get_auth_manager() -> AuthManager:
     """Get or create auth manager instance"""
     global auth_manager
+    if AuthManager is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Authentication dependencies are not installed",
+        )
     if auth_manager is None:
         auth_manager = AuthManager()
     return auth_manager
+
+
+async def ensure_demo_user() -> User:
+    """Create or return the persistent demo user used by local API auth."""
+    mgr = await get_ready_manager()
+    user = await mgr.storage.get_user("test-user-id")
+    if isinstance(user, User):
+        return user
+
+    user = await mgr.storage.get_user_by_username("testuser")
+    if isinstance(user, User):
+        return user
+
+    user = User.create_user(
+        username="testuser",
+        email="test@example.com",
+        password=secrets.token_urlsafe(32),
+        role=UserRole.MANAGER,
+    )
+    user.id = "test-user-id"
+    await mgr.storage.create_user(user)
+
+    force_save = getattr(mgr.storage, "force_save", None)
+    if callable(force_save):
+        await force_save()
+
+    return user
 
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
 ) -> User:
     """Get current authenticated user"""
+    if os.getenv("TASKFORGE_DEMO_AUTH", "true").lower() == "true":
+        return await ensure_demo_user()
+
     auth_mgr = get_auth_manager()
     user_id = await auth_mgr.verify_token_async(credentials.credentials)
 
@@ -121,7 +173,7 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    mgr = get_manager()
+    mgr = await get_ready_manager()
     user = await mgr.get_user(user_id)
     if not user:
         raise HTTPException(
@@ -142,7 +194,7 @@ async def health_check():
 @app.post("/auth/register", response_model=TokenResponse)
 async def register(user_data: UserCreate):
     """Register a new user"""
-    mgr = get_manager()
+    mgr = await get_ready_manager()
     auth_mgr = get_auth_manager()
 
     try:
@@ -170,7 +222,7 @@ async def register(user_data: UserCreate):
 @app.post("/auth/login", response_model=TokenResponse)
 async def login(username: str, password: str):
     """Authenticate user and return token"""
-    mgr = get_manager()
+    mgr = await get_ready_manager()
     auth_mgr = get_auth_manager()
 
     # Find user by username
@@ -196,7 +248,7 @@ async def create_task(
     task_data: TaskCreate, current_user: User = Depends(get_current_user)
 ):
     """Create a new task"""
-    mgr = get_manager()
+    mgr = await get_ready_manager()
 
     task = Task(
         title=task_data.title,
@@ -228,7 +280,7 @@ async def list_tasks(
     current_user: User = Depends(get_current_user),
 ):
     """List tasks with filtering options"""
-    mgr = get_manager()
+    mgr = await get_ready_manager()
 
     query = TaskQuery(
         status=status,
@@ -252,7 +304,7 @@ async def list_tasks(
 @app.get("/tasks/{task_id}", response_model=Task)
 async def get_task(task_id: str, current_user: User = Depends(get_current_user)):
     """Get a specific task"""
-    mgr = get_manager()
+    mgr = await get_ready_manager()
 
     task = await mgr.get_task(task_id)
     if not task:
@@ -270,10 +322,10 @@ async def update_task(
     current_user: User = Depends(get_current_user),
 ):
     """Update a task"""
-    mgr = get_manager()
+    mgr = await get_ready_manager()
 
     # Convert to dict, excluding None values
-    updates = task_update.dict(exclude_unset=True)
+    updates = task_update.model_dump(exclude_unset=True)
 
     # Convert tags list to set if provided
     if "tags" in updates:
@@ -291,7 +343,7 @@ async def update_task(
 @app.delete("/tasks/{task_id}")
 async def delete_task(task_id: str, current_user: User = Depends(get_current_user)):
     """Delete a task"""
-    mgr = get_manager()
+    mgr = await get_ready_manager()
 
     try:
         success = await mgr.delete_task(task_id, current_user.id)
@@ -310,7 +362,7 @@ async def create_project(
     project_data: ProjectCreate, current_user: User = Depends(get_current_user)
 ):
     """Create a new project"""
-    mgr = get_manager()
+    mgr = await get_ready_manager()
 
     project = Project(
         name=project_data.name,
@@ -330,7 +382,7 @@ async def create_project(
 @app.get("/projects", response_model=List[Project])
 async def list_projects(current_user: User = Depends(get_current_user)):
     """List user's projects"""
-    mgr = get_manager()
+    mgr = await get_ready_manager()
 
     try:
         # Get projects where user is owner or member
@@ -345,7 +397,7 @@ async def list_projects(current_user: User = Depends(get_current_user)):
 @app.get("/projects/{project_id}", response_model=Project)
 async def get_project(project_id: str, current_user: User = Depends(get_current_user)):
     """Get a specific project"""
-    mgr = get_manager()
+    mgr = await get_ready_manager()
 
     project = await mgr.get_project(project_id)
     if not project:
@@ -369,7 +421,7 @@ async def get_task_statistics(
     current_user: User = Depends(get_current_user),
 ):
     """Get task statistics"""
-    mgr = get_manager()
+    mgr = await get_ready_manager()
 
     try:
         stats = await mgr.get_task_statistics(project_id, current_user.id)
@@ -385,7 +437,7 @@ async def get_productivity_metrics(
     days: int = Query(30, ge=1, le=365), current_user: User = Depends(get_current_user)
 ):
     """Get user productivity metrics"""
-    mgr = get_manager()
+    mgr = await get_ready_manager()
 
     try:
         metrics = await mgr.get_productivity_metrics(current_user.id, days)
@@ -400,7 +452,7 @@ async def get_productivity_metrics(
 @app.get("/dashboard")
 async def get_dashboard(current_user: User = Depends(get_current_user)):
     """Get dashboard data"""
-    mgr = get_manager()
+    mgr = await get_ready_manager()
 
     try:
         # Get various dashboard data
@@ -415,8 +467,8 @@ async def get_dashboard(current_user: User = Depends(get_current_user)):
             "upcoming_tasks": len(upcoming_tasks),
             "statistics": stats,
             "productivity": productivity,
-            "recent_overdue": [task.dict() for task in overdue_tasks[:5]],
-            "recent_upcoming": [task.dict() for task in upcoming_tasks[:5]],
+            "recent_overdue": [task.to_dict() for task in overdue_tasks[:5]],
+            "recent_upcoming": [task.to_dict() for task in upcoming_tasks[:5]],
         }
     except Exception as e:
         raise HTTPException(

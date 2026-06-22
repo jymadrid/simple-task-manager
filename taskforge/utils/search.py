@@ -2,31 +2,57 @@
 Advanced search engine for TaskForge
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    DefaultDict,
+    Dict,
+    List,
+    Optional,
+    Set,
+    Tuple,
+    Union,
+)
+
+from taskforge.utils.values import enum_value
+
+if TYPE_CHECKING:
+    from taskforge.core.project import Project
+    from taskforge.core.task import Task
+    from taskforge.core.user import User
+
 
 # Lazy imports for better startup performance
-def _get_core_models():
+def _get_core_models() -> Tuple[Any, Any, Any, Any, Any, Any]:
     """Lazy import core models"""
     from taskforge.core.project import Project
     from taskforge.core.task import Task, TaskPriority, TaskStatus, TaskType
     from taskforge.core.user import User
+
     return Project, Task, TaskPriority, TaskStatus, TaskType, User
 
-def _get_re_module():
+
+def _get_re_module() -> Any:
     """Lazy import regex module"""
     import re
+
     return re
 
-def _get_statistics_module():
+
+def _get_statistics_module() -> Any:
     """Lazy import statistics module"""
     import statistics
+
     return statistics
+
 
 logger = logging.getLogger(__name__)
 
@@ -85,14 +111,14 @@ class SearchQuery:
     """Comprehensive search query"""
 
     text: Optional[str] = None
-    filters: List[SearchFilter] = None
-    sorts: List[SearchSort] = None
+    filters: Optional[List[SearchFilter]] = None
+    sorts: Optional[List[SearchSort]] = None
     limit: int = 50
     offset: int = 0
     include_archived: bool = False
     highlight: bool = False
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.filters is None:
             self.filters = []
         if self.sorts is None:
@@ -105,9 +131,9 @@ class SearchResult:
 
     item: Union[Task, Project, User]
     score: float
-    highlights: Dict[str, List[str]] = None
+    highlights: Optional[Dict[str, List[str]]] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.highlights is None:
             self.highlights = {}
 
@@ -119,9 +145,9 @@ class SearchResults:
     items: List[SearchResult]
     total_count: int
     query_time_ms: float
-    facets: Dict[str, Dict[str, int]] = None
+    facets: Optional[Dict[str, Dict[str, int]]] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.facets is None:
             self.facets = {}
 
@@ -129,14 +155,14 @@ class SearchResults:
 class SearchIndex:
     """In-memory search index for fast text searches"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.documents: Dict[str, Dict[str, Any]] = {}
         self.inverted_index: Dict[str, Set[str]] = defaultdict(set)
         self.field_values: Dict[str, Dict[str, Set[str]]] = defaultdict(
             lambda: defaultdict(set)
         )
 
-    def add_document(self, doc_id: str, document: Dict[str, Any]):
+    def add_document(self, doc_id: str, document: Dict[str, Any]) -> None:
         """Add a document to the search index"""
         self.documents[doc_id] = document
 
@@ -155,7 +181,7 @@ class SearchIndex:
                             self.inverted_index[token].add(doc_id)
                             self.field_values[field][token].add(doc_id)
 
-    def remove_document(self, doc_id: str):
+    def remove_document(self, doc_id: str) -> None:
         """Remove a document from the search index"""
         if doc_id not in self.documents:
             return
@@ -200,6 +226,7 @@ class SearchIndex:
     def _tokenize(self, text: str) -> List[str]:
         """Tokenize text for indexing"""
         # Simple tokenization - can be enhanced with stemming, etc.
+        re = _get_re_module()
         tokens = re.findall(r"\w+", text.lower())
         return [token for token in tokens if len(token) > 2]  # Filter short tokens
 
@@ -237,7 +264,7 @@ class SearchIndex:
 class SearchEngine:
     """Advanced search engine for TaskForge"""
 
-    def __init__(self, storage_backend=None):
+    def __init__(self, storage_backend: Any = None) -> None:
         self.storage = storage_backend
         self.index = SearchIndex()
 
@@ -280,15 +307,15 @@ class SearchEngine:
             "is_active": SearchField("is_active", FieldType.BOOLEAN),
         }
 
-    async def index_task(self, task: Task):
+    async def index_task(self, task: Task) -> None:
         """Add or update a task in the search index"""
         doc = {
             "id": task.id,
             "title": task.title,
             "description": task.description or "",
-            "status": task.status.value,
-            "priority": task.priority.value,
-            "task_type": task.task_type.value,
+            "status": enum_value(task.status),
+            "priority": enum_value(task.priority),
+            "task_type": enum_value(task.task_type),
             "created_at": task.created_at.isoformat(),
             "updated_at": task.updated_at.isoformat() if task.updated_at else "",
             "due_date": task.due_date.isoformat() if task.due_date else "",
@@ -303,13 +330,13 @@ class SearchEngine:
         self.index.add_document(f"task_{task.id}", doc)
         logger.debug(f"Indexed task: {task.title}")
 
-    async def index_project(self, project: Project):
+    async def index_project(self, project: Project) -> None:
         """Add or update a project in the search index"""
         doc = {
             "id": project.id,
             "name": project.name,
             "description": project.description or "",
-            "status": project.status.value,
+            "status": enum_value(project.status),
             "created_at": project.created_at.isoformat(),
             "start_date": project.start_date.isoformat() if project.start_date else "",
             "end_date": project.end_date.isoformat() if project.end_date else "",
@@ -320,14 +347,14 @@ class SearchEngine:
         self.index.add_document(f"project_{project.id}", doc)
         logger.debug(f"Indexed project: {project.name}")
 
-    async def index_user(self, user: User):
+    async def index_user(self, user: User) -> None:
         """Add or update a user in the search index"""
         doc = {
             "id": user.id,
             "username": user.username,
             "email": user.email,
             "full_name": user.full_name or "",
-            "role": user.role.value,
+            "role": enum_value(user.role),
             "created_at": user.created_at.isoformat(),
             "is_active": user.is_active,
             "_type": "user",
@@ -336,7 +363,7 @@ class SearchEngine:
         self.index.add_document(f"user_{user.id}", doc)
         logger.debug(f"Indexed user: {user.username}")
 
-    async def remove_from_index(self, entity_type: str, entity_id: str):
+    async def remove_from_index(self, entity_type: str, entity_id: str) -> None:
         """Remove an entity from the search index"""
         self.index.remove_document(f"{entity_type}_{entity_id}")
 
@@ -378,10 +405,10 @@ class SearchEngine:
                             task_results.append(result)
 
             # Apply additional filters
-            filtered_results = self._apply_filters(task_results, query.filters)
+            filtered_results = self._apply_filters(task_results, query.filters or [])
 
             # Apply sorting
-            sorted_results = self._apply_sorting(filtered_results, query.sorts)
+            sorted_results = self._apply_sorting(filtered_results, query.sorts or [])
 
             # Apply pagination
             results = sorted_results[query.offset : query.offset + query.limit]
@@ -535,39 +562,41 @@ class SearchEngine:
             return operator == "ne" and filter_value is not None
 
         if operator == "eq":
-            return field_value == filter_value
+            return enum_value(field_value) == enum_value(filter_value)
         elif operator == "ne":
-            return field_value != filter_value
+            return enum_value(field_value) != enum_value(filter_value)
         elif operator == "gt":
-            return field_value > filter_value
+            return bool(field_value > filter_value)
         elif operator == "lt":
-            return field_value < filter_value
+            return bool(field_value < filter_value)
         elif operator == "gte":
-            return field_value >= filter_value
+            return bool(field_value >= filter_value)
         elif operator == "lte":
-            return field_value <= filter_value
+            return bool(field_value <= filter_value)
         elif operator == "in":
-            return field_value in filter_value
+            return enum_value(field_value) in {
+                enum_value(value) for value in filter_value
+            }
         elif operator == "contains":
             if isinstance(field_value, str):
                 if filter_spec.case_sensitive:
-                    return filter_value in field_value
+                    return bool(filter_value in field_value)
                 else:
-                    return filter_value.lower() in field_value.lower()
+                    return bool(filter_value.lower() in field_value.lower())
             elif isinstance(field_value, (list, set)):
-                return filter_value in field_value
+                return bool(filter_value in field_value)
         elif operator == "startswith":
             if isinstance(field_value, str):
                 if filter_spec.case_sensitive:
-                    return field_value.startswith(filter_value)
+                    return bool(field_value.startswith(filter_value))
                 else:
-                    return field_value.lower().startswith(filter_value.lower())
+                    return bool(field_value.lower().startswith(filter_value.lower()))
         elif operator == "endswith":
             if isinstance(field_value, str):
                 if filter_spec.case_sensitive:
-                    return field_value.endswith(filter_value)
+                    return bool(field_value.endswith(filter_value))
                 else:
-                    return field_value.lower().endswith(filter_value.lower())
+                    return bool(field_value.lower().endswith(filter_value.lower()))
 
         return False
 
@@ -579,8 +608,8 @@ class SearchEngine:
             # Default sort by relevance score
             return sorted(results, key=lambda r: r.score, reverse=True)
 
-        def sort_key(result):
-            keys = []
+        def sort_key(result: SearchResult) -> Tuple[Any, ...]:
+            keys: List[Any] = []
             for sort_spec in sorts:
                 value = getattr(result.item, sort_spec.field, None)
                 if value is None:
@@ -636,27 +665,30 @@ class SearchEngine:
         self, results: List[SearchResult]
     ) -> Dict[str, Dict[str, int]]:
         """Generate facets for search results"""
-        facets = defaultdict(lambda: defaultdict(int))
+        facets: DefaultDict[str, DefaultDict[str, int]] = defaultdict(
+            lambda: defaultdict(int)
+        )
+        from taskforge.core.task import Task
 
         for result in results:
             item = result.item
             if isinstance(item, Task):
-                facets["status"][item.status.value] += 1
-                facets["priority"][item.priority.value] += 1
-                facets["task_type"][item.task_type.value] += 1
+                facets["status"][enum_value(item.status)] += 1
+                facets["priority"][enum_value(item.priority)] += 1
+                facets["task_type"][enum_value(item.task_type)] += 1
 
                 # Tags facet
                 for tag in item.tags:
                     facets["tags"][tag] += 1
 
-        return dict(facets)
+        return {facet: dict(values) for facet, values in facets.items()}
 
     def _document_to_task(self, doc: Dict[str, Any]) -> Optional[Task]:
         """Convert search document back to Task object (simplified)"""
         try:
             # This is a simplified conversion - in a real implementation
             # you'd want to properly reconstruct the full object
-            from taskforge.core.task import Task  # Already imported at top
+            from taskforge.core.task import Task, TaskPriority, TaskStatus, TaskType
 
             task = Task(
                 id=doc["id"],
@@ -734,6 +766,6 @@ class SearchEngine:
 
 
 # Factory function
-def create_search_engine(storage_backend=None) -> SearchEngine:
+def create_search_engine(storage_backend: Any = None) -> SearchEngine:
     """Create a configured search engine"""
     return SearchEngine(storage_backend)

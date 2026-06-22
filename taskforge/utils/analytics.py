@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from taskforge.core.project import Project, ProjectStatus
 from taskforge.core.task import Task, TaskPriority, TaskStatus, TaskType
 from taskforge.core.user import User
+from taskforge.utils.values import enum_matches, enum_value
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +47,7 @@ class Metric:
     name: str
     value: Union[int, float, Dict[str, Any]]
     metric_type: MetricType
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -79,7 +80,7 @@ class AnalyticsReport:
     time_series: List[TimeSeries]
     charts: Dict[str, Any] = field(default_factory=dict)
     insights: List[str] = field(default_factory=list)
-    generated_at: datetime = field(default_factory=datetime.utcnow)
+    generated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class AnalyticsEngine:
@@ -118,9 +119,11 @@ class AnalyticsEngine:
 
         # Calculate basic statistics
         total_tasks = len(tasks)
-        completed_tasks = len([t for t in tasks if t.status == TaskStatus.DONE])
+        completed_tasks = len(
+            [t for t in tasks if enum_matches(t.status, TaskStatus.DONE)]
+        )
         in_progress_tasks = len(
-            [t for t in tasks if t.status == TaskStatus.IN_PROGRESS]
+            [t for t in tasks if enum_matches(t.status, TaskStatus.IN_PROGRESS)]
         )
         overdue_tasks = len([t for t in tasks if t.is_overdue()])
 
@@ -129,7 +132,7 @@ class AnalyticsEngine:
         # Calculate average completion time
         completion_times = []
         for task in tasks:
-            if task.status == TaskStatus.DONE and task.completed_at:
+            if enum_matches(task.status, TaskStatus.DONE) and task.completed_at:
                 completion_time = (
                     task.completed_at - task.created_at
                 ).total_seconds() / 3600  # hours
@@ -140,16 +143,16 @@ class AnalyticsEngine:
         )
 
         # Status distribution
-        status_distribution = Counter(task.status.value for task in tasks)
+        status_distribution = Counter(enum_value(task.status) for task in tasks)
 
         # Priority distribution
-        priority_distribution = Counter(task.priority.value for task in tasks)
+        priority_distribution = Counter(enum_value(task.priority) for task in tasks)
 
         # Type distribution
-        type_distribution = Counter(task.task_type.value for task in tasks)
+        type_distribution = Counter(enum_value(task.task_type) for task in tasks)
 
         # Monthly trends (last 12 months)
-        monthly_trends = await self._calculate_monthly_trends(tasks)
+        monthly_trends = self._calculate_monthly_trends(tasks)
 
         result = {
             "total_tasks": total_tasks,
@@ -191,7 +194,7 @@ class AnalyticsEngine:
             [
                 t
                 for t in tasks
-                if t.status == TaskStatus.DONE
+                if enum_matches(t.status, TaskStatus.DONE)
                 and t.completed_at
                 and t.completed_at >= start_date
             ]
@@ -210,7 +213,7 @@ class AnalyticsEngine:
             [
                 t
                 for t in tasks
-                if t.priority in [TaskPriority.HIGH, TaskPriority.CRITICAL]
+                if enum_matches(t.priority, TaskPriority.HIGH, TaskPriority.CRITICAL)
             ]
         )
         focus_score = high_priority_tasks / len(tasks) if tasks else 0.0
@@ -232,7 +235,9 @@ class AnalyticsEngine:
         time_by_type = defaultdict(float)
         for task in tasks:
             if hasattr(task, "time_tracking") and task.time_tracking.actual_hours > 0:
-                time_by_type[task.task_type.value] += task.time_tracking.actual_hours
+                time_by_type[
+                    enum_value(task.task_type)
+                ] += task.time_tracking.actual_hours
 
         result = {
             "period_days": days,
@@ -268,7 +273,9 @@ class AnalyticsEngine:
 
         # Basic project metrics
         total_tasks = len(tasks)
-        completed_tasks = len([t for t in tasks if t.status == TaskStatus.DONE])
+        completed_tasks = len(
+            [t for t in tasks if enum_matches(t.status, TaskStatus.DONE)]
+        )
 
         # Progress calculation
         if project.start_date and project.end_date:
@@ -296,7 +303,7 @@ class AnalyticsEngine:
         result = {
             "project_id": project_id,
             "project_name": project.name,
-            "status": project.status.value,
+            "status": enum_value(project.status),
             "total_tasks": total_tasks,
             "completed_tasks": completed_tasks,
             "task_progress": round(task_progress, 3),
@@ -338,7 +345,7 @@ class AnalyticsEngine:
             individual_metrics[user_id] = {
                 "tasks_assigned": len(user_tasks),
                 "tasks_completed": len(
-                    [t for t in user_tasks if t.status == TaskStatus.DONE]
+                    [t for t in user_tasks if enum_matches(t.status, TaskStatus.DONE)]
                 ),
                 "avg_completion_time": await self._calculate_avg_completion_time(
                     user_tasks
@@ -354,7 +361,7 @@ class AnalyticsEngine:
             [
                 t
                 for t in team_tasks
-                if t.status == TaskStatus.DONE
+                if enum_matches(t.status, TaskStatus.DONE)
                 and t.completed_at
                 and t.completed_at >= datetime.now(timezone.utc) - timedelta(days=7)
             ]
@@ -469,7 +476,7 @@ class AnalyticsEngine:
                 [
                     t
                     for t in tasks
-                    if t.status == TaskStatus.DONE
+                    if enum_matches(t.status, TaskStatus.DONE)
                     and t.completed_at
                     and month_start <= t.completed_at <= month_end
                 ]
@@ -502,7 +509,9 @@ class AnalyticsEngine:
         current_date = start_date.date()
 
         while current_date <= end_date.date():
-            day_start = datetime.combine(current_date, datetime.min.time())
+            day_start = datetime.combine(
+                current_date, datetime.min.time(), tzinfo=timezone.utc
+            )
             day_end = day_start + timedelta(days=1)
 
             created = len([t for t in tasks if day_start <= t.created_at < day_end])
@@ -510,7 +519,7 @@ class AnalyticsEngine:
                 [
                     t
                     for t in tasks
-                    if t.status == TaskStatus.DONE
+                    if enum_matches(t.status, TaskStatus.DONE)
                     and t.completed_at
                     and day_start <= t.completed_at < day_end
                 ]
@@ -542,7 +551,9 @@ class AnalyticsEngine:
 
         performance = {}
         for user_id, user_tasks in by_assignee.items():
-            completed = len([t for t in user_tasks if t.status == TaskStatus.DONE])
+            completed = len(
+                [t for t in user_tasks if enum_matches(t.status, TaskStatus.DONE)]
+            )
             total = len(user_tasks)
 
             performance[user_id] = {
@@ -605,7 +616,7 @@ class AnalyticsEngine:
                 [
                     t
                     for t in tasks
-                    if t.status == TaskStatus.DONE
+                    if enum_matches(t.status, TaskStatus.DONE)
                     and t.completed_at
                     and t.completed_at.date() <= current_date
                 ]
@@ -641,7 +652,9 @@ class AnalyticsEngine:
         if not tasks:
             return None
 
-        remaining_tasks = len([t for t in tasks if t.status != TaskStatus.DONE])
+        remaining_tasks = len(
+            [t for t in tasks if not enum_matches(t.status, TaskStatus.DONE)]
+        )
         if remaining_tasks == 0:
             return datetime.now(timezone.utc).date().isoformat()
 
@@ -651,7 +664,7 @@ class AnalyticsEngine:
             [
                 t
                 for t in tasks
-                if t.status == TaskStatus.DONE
+                if enum_matches(t.status, TaskStatus.DONE)
                 and t.completed_at
                 and t.completed_at >= thirty_days_ago
             ]
@@ -712,7 +725,7 @@ class AnalyticsEngine:
         """Calculate average completion time for tasks"""
         completion_times = []
         for task in tasks:
-            if task.status == TaskStatus.DONE and task.completed_at:
+            if enum_matches(task.status, TaskStatus.DONE) and task.completed_at:
                 hours = (task.completed_at - task.created_at).total_seconds() / 3600
                 completion_times.append(hours)
 

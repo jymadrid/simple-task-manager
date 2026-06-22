@@ -4,6 +4,7 @@ CLI测试模块
 
 from typer.testing import CliRunner
 
+import taskforge.cli as cli_module
 from taskforge.cli import app
 
 runner = CliRunner()
@@ -58,3 +59,26 @@ def test_task_list_command_exists():
     except SystemExit:
         # CLI可能会调用sys.exit()，这是正常行为
         pass
+
+
+def test_task_add_and_list_works_in_empty_data_dir(tmp_path, monkeypatch):
+    """测试CLI在全新数据目录中可直接创建并列出任务"""
+    monkeypatch.setenv("TASKFORGE_DATA_DIR", str(tmp_path))
+    cli_module.manager = None
+    cli_module.manager_initialized = False
+
+    add_result = runner.invoke(app, ["task", "add", "CLI Smoke Task"])
+    assert add_result.exit_code == 0, add_result.stdout
+    assert "Task created" in add_result.stdout
+
+    second_add_result = runner.invoke(app, ["task", "add", "Another Task"])
+    assert second_add_result.exit_code == 0, second_add_result.stdout
+
+    list_result = runner.invoke(app, ["task", "list"])
+    assert list_result.exit_code == 0, list_result.stdout
+    assert "CLI Smoke Task" in list_result.stdout
+
+    search_result = runner.invoke(app, ["task", "list", "--search", "Smoke"])
+    assert search_result.exit_code == 0, search_result.stdout
+    assert "CLI Smoke Task" in search_result.stdout
+    assert "Another Task" not in search_result.stdout

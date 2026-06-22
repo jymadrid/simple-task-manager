@@ -1,5 +1,14 @@
-"""Web interface package"""
+"""Web interface package.
 
-from .dashboard import main as run_dashboard
+Dashboard dependencies are optional, so import them lazily.
+"""
+
+
+def run_dashboard() -> None:
+    """Run the default Streamlit dashboard."""
+    from .dashboard import main
+
+    main()
+
 
 __all__ = ["run_dashboard"]

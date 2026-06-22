@@ -6,7 +6,7 @@ import json
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -68,11 +68,11 @@ class PluginConfig:
     """Plugin configuration"""
 
     enabled: bool = True
-    directories: list = field(
+    directories: List[str] = field(
         default_factory=lambda: ["./plugins", "~/.taskforge/plugins"]
     )
-    auto_load: list = field(default_factory=list)
-    disabled: list = field(default_factory=list)
+    auto_load: List[str] = field(default_factory=list)
+    disabled: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -132,7 +132,7 @@ class Config:
 
         if config_path and config_path.exists():
             try:
-                with open(config_path, "r") as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     file_config = json.load(f)
                     config._update_from_dict(file_config)
             except (json.JSONDecodeError, IOError) as e:
@@ -146,7 +146,7 @@ class Config:
 
         return config
 
-    def _update_from_dict(self, data: Dict[str, Any]):
+    def _update_from_dict(self, data: Dict[str, Any]) -> None:
         """Update configuration from dictionary"""
         for key, value in data.items():
             if hasattr(self, key):
@@ -169,7 +169,7 @@ class Config:
                 else:
                     setattr(self, key, value)
 
-    def _load_from_env(self):
+    def _load_from_env(self) -> None:
         """Load configuration from environment variables"""
         # Basic settings
         self.debug = os.getenv("TASKFORGE_DEBUG", "false").lower() == "true"
@@ -178,8 +178,9 @@ class Config:
         self.timezone = os.getenv("TASKFORGE_TIMEZONE", self.timezone)
 
         # Database configuration
-        if os.getenv("DATABASE_URL"):
-            self.database.url = os.getenv("DATABASE_URL")
+        database_url = os.getenv("DATABASE_URL")
+        if database_url:
+            self.database.url = database_url
             # Parse database type from URL
             if self.database.url.startswith("postgresql://"):
                 self.database.type = "postgresql"
@@ -234,7 +235,7 @@ class Config:
             "FROM_EMAIL", self.notifications.from_email
         )
 
-    def _validate(self):
+    def _validate(self) -> None:
         """Validate configuration"""
         # Ensure data directory exists
         Path(self.data_directory).mkdir(parents=True, exist_ok=True)
@@ -259,7 +260,7 @@ class Config:
         if len(self.security.secret_key) < 32:
             print("Warning: Secret key is shorter than recommended (32 characters)")
 
-    def save(self, config_file: str):
+    def save(self, config_file: str) -> None:
         """Save configuration to file"""
         config_data = {
             "debug": self.debug,
@@ -316,7 +317,7 @@ class Config:
         config_path = Path(config_file)
         config_path.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(config_path, "w") as f:
+        with open(config_path, "w", encoding="utf-8") as f:
             json.dump(config_data, f, indent=2)
 
     def get_database_url(self) -> str:

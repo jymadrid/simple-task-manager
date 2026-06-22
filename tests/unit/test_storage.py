@@ -117,6 +117,45 @@ class TestJSONStorage:
         assert len(filtered_tasks) == 2
 
     @pytest.mark.asyncio
+    async def test_task_search_tags_sorting_and_pagination(self, storage):
+        """Test tag matching modes, case-insensitive lookup, sorting, and offsets."""
+        tasks = [
+            Task(title="Alpha", priority=TaskPriority.LOW, tags={"Backend", "API"}),
+            Task(title="Bravo", priority=TaskPriority.CRITICAL, tags={"backend"}),
+            Task(title="Charlie", priority=TaskPriority.HIGH, tags={"frontend"}),
+        ]
+
+        for task in tasks:
+            await storage.create_task(task)
+
+        all_tag_matches = await storage.search_tasks(
+            TaskQuery(tags=["backend", "api"], sort_by="title", sort_desc=False),
+            "test-user",
+        )
+        any_tag_matches = await storage.search_tasks(
+            TaskQuery(
+                tags=["backend", "api"],
+                tags_match_all=False,
+                sort_by="priority",
+                sort_desc=True,
+            ),
+            "test-user",
+        )
+        paged_titles = await storage.search_tasks(
+            TaskQuery(sort_by="title", sort_desc=False, limit=1, offset=1),
+            "test-user",
+        )
+
+        assert [task.title for task in all_tag_matches] == ["Alpha"]
+        assert [task.title for task in any_tag_matches] == ["Bravo", "Alpha"]
+        assert [task.title for task in paged_titles] == ["Bravo"]
+
+    def test_task_query_rejects_unknown_sort_field(self):
+        """TaskQuery should fail fast for unsupported sort fields."""
+        with pytest.raises(ValueError, match="Unsupported task sort field"):
+            TaskQuery(sort_by="unknown")
+
+    @pytest.mark.asyncio
     async def test_project_crud_operations(self, storage):
         """Test basic CRUD operations for projects"""
         # Create a project
@@ -195,6 +234,71 @@ class TestJSONStorage:
         assert deleted_user is None
 
     @pytest.mark.asyncio
+    async def test_user_password_hash_persists_across_instances(self, temp_dir):
+        """User password hashes should survive normal JSON persistence."""
+        storage1 = JSONStorage(temp_dir)
+        await storage1.initialize()
+
+        user = User.create_user("persisted", "persisted@example.com", "password123")
+        await storage1.create_user(user)
+        await storage1.cleanup()
+
+        storage2 = JSONStorage(temp_dir)
+        await storage2.initialize()
+        reloaded_user = await storage2.get_user(user.id)
+
+        assert reloaded_user is not None
+        assert reloaded_user.password_hash == user.password_hash
+        assert reloaded_user.verify_password("password123")
+
+        await storage2.cleanup()
+
+    @pytest.mark.asyncio
+    async def test_full_backup_round_trip_preserves_data_and_indexes(self, temp_dir):
+        """Full backup import should preserve sensitive fields and rebuild indexes."""
+        source_dir = os.path.join(temp_dir, "source")
+        target_dir = os.path.join(temp_dir, "target")
+
+        source = JSONStorage(source_dir)
+        await source.initialize()
+
+        user = User.create_user("backupuser", "backup@example.com", "password123")
+        await source.create_user(user)
+        project = Project(name="Backup Project", owner_id=user.id)
+        await source.create_project(project)
+        task = Task(
+            title="Backup Task",
+            status=TaskStatus.DONE,
+            priority=TaskPriority.HIGH,
+            assigned_to=user.id,
+            project_id=project.id,
+            tags={"backup", "restore"},
+        )
+        await source.create_task(task)
+
+        backup_data = await source.export_data()
+        await source.cleanup()
+
+        target = JSONStorage(target_dir)
+        await target.initialize()
+
+        assert await target.import_data(backup_data)
+
+        imported_user = await target.get_user(user.id)
+        imported_project = await target.get_project(project.id)
+        restored_tasks = await target.search_tasks(
+            TaskQuery(tags=["backup"], priority=[TaskPriority.HIGH]), user.id
+        )
+
+        assert imported_user is not None
+        assert imported_user.verify_password("password123")
+        assert imported_project is not None
+        assert imported_project.name == "Backup Project"
+        assert [task.title for task in restored_tasks] == ["Backup Task"]
+
+        await target.cleanup()
+
+    @pytest.mark.asyncio
     async def test_bulk_operations(self, storage):
         """Test bulk operations"""
         # Create multiple tasks
@@ -219,6 +323,49 @@ class TestJSONStorage:
         task_ids = [task.id for task in created_tasks]
         deleted_count = await storage.bulk_delete_tasks(task_ids)
         assert deleted_count == 5
+
+    @pytest.mark.asyncio
+    async def test_bulk_create_updates_indexes_and_persists(self, temp_dir):
+        """Bulk-created tasks should be immediately searchable and durable."""
+        storage1 = JSONStorage(temp_dir)
+        await storage1.initialize()
+
+        tasks = [
+            Task(title="Bulk High", priority=TaskPriority.HIGH),
+            Task(title="Bulk Done", status=TaskStatus.DONE),
+        ]
+        await storage1.bulk_create_tasks(tasks)
+
+        high_priority = await storage1.search_tasks(
+            TaskQuery(priority=[TaskPriority.HIGH]), "test-user"
+        )
+        done_tasks = await storage1.search_tasks(
+            TaskQuery(status=[TaskStatus.DONE]), "test-user"
+        )
+
+        assert [task.title for task in high_priority] == ["Bulk High"]
+        assert [task.title for task in done_tasks] == ["Bulk Done"]
+
+        await storage1.cleanup()
+
+        storage2 = JSONStorage(temp_dir)
+        await storage2.initialize()
+        persisted = await storage2.search_tasks(TaskQuery(limit=10), "test-user")
+
+        assert {task.title for task in persisted} == {"Bulk High", "Bulk Done"}
+        await storage2.cleanup()
+
+    @pytest.mark.asyncio
+    async def test_cache_statistics_count_hits_and_misses(self, storage):
+        """Project/user cache stats should count misses instead of reusing old values."""
+        await storage.get_project("missing-project")
+        await storage.get_user("missing-user")
+
+        stats = storage.get_cache_statistics()
+
+        assert stats["cache_hits"] == 0
+        assert stats["cache_misses"] == 2
+        assert stats["total_requests"] == 2
 
     @pytest.mark.asyncio
     async def test_statistics(self, storage):

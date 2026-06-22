@@ -2,7 +2,7 @@
 Optimized storage layer with advanced caching integration
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 from taskforge.core.project import Project
 from taskforge.core.queries import TaskQuery
@@ -45,7 +45,7 @@ class OptimizedJSONStorage(JSONStorage):
         # Try L1/L2 cache first
         cached_result = await self._query_cache.get(query_key)
         if cached_result is not None:
-            return cached_result
+            return cast(List[Task], cached_result)
 
         # Cache miss - use parent's optimized search
         result = await super().search_tasks(query, user_id)
@@ -57,13 +57,24 @@ class OptimizedJSONStorage(JSONStorage):
 
     def _create_query_cache_key(self, query: TaskQuery, user_id: str) -> str:
         """Create a unique cache key for a query"""
+
+        def enum_value(value: Any) -> str:
+            return str(getattr(value, "value", value))
+
         key_parts = [
             f"user={user_id}",
-            f"status={','.join([s.value for s in (query.status or [])])}",
-            f"priority={','.join([p.value for p in (query.priority or [])])}",
+            f"status={','.join([enum_value(s) for s in (query.status or [])])}",
+            f"priority={','.join([enum_value(p) for p in (query.priority or [])])}",
             f"assigned={query.assigned_to or 'none'}",
             f"project={query.project_id or 'none'}",
-            f"tags={','.join(query.tags or [])}",
+            f"tags={','.join(sorted(query.tags or []))}",
+            f"tags_match_all={query.tags_match_all}",
+            f"created_after={query.created_after.isoformat() if query.created_after else 'none'}",
+            f"created_before={query.created_before.isoformat() if query.created_before else 'none'}",
+            f"due_after={query.due_after.isoformat() if query.due_after else 'none'}",
+            f"due_before={query.due_before.isoformat() if query.due_before else 'none'}",
+            f"sort_by={query.sort_by}",
+            f"sort_desc={query.sort_desc}",
             f"limit={query.limit}",
             f"offset={query.offset}",
         ]
@@ -91,7 +102,7 @@ class OptimizedJSONStorage(JSONStorage):
         """Create task and invalidate relevant caches"""
         result = await super().create_task(task)
         await self.invalidate_caches()
-        return result
+        return cast(Task, result)
 
     async def update_task(self, task: Task) -> Task:
         """Update task and invalidate relevant caches"""

@@ -3,29 +3,36 @@ Central task management system
 """
 
 import asyncio
-from collections import defaultdict
+import logging
+from collections import defaultdict, deque
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, cast
 
 from taskforge.core.project import Project, ProjectStatus
 from taskforge.core.queries import TaskQuery
 from taskforge.core.task import Task, TaskPriority, TaskStatus
 from taskforge.core.user import Permission, User
 from taskforge.storage.base import StorageProtocol
+
+AnalyticsEngine: Any
 try:
     from taskforge.utils.analytics import AnalyticsEngine
 except ImportError:
     AnalyticsEngine = None
 
+NotificationManager: Any
 try:
     from taskforge.utils.notifications import NotificationManager
 except ImportError:
     NotificationManager = None
 
+SearchEngine: Any
 try:
     from taskforge.utils.search import SearchEngine
 except ImportError:
     SearchEngine = None
+
+logger = logging.getLogger(__name__)
 
 
 class TaskManager:
@@ -127,14 +134,25 @@ class TaskManager:
         if not user or not user.has_permission(Permission.TASK_UPDATE):
             raise PermissionError("User does not have permission to update tasks")
 
-        # Apply updates
+        # Apply simple field updates first. Status and progress use domain methods
+        # below so completion timestamps and activity logs stay consistent.
+        status_update = updates.get("status")
+        progress_update = updates.get("progress")
         for field, value in updates.items():
+            if field in {"status", "progress"}:
+                continue
             if hasattr(task, field):
                 setattr(task, field, value)
 
         # Validate dependencies if changed
         if "dependencies" in updates:
             await self._validate_dependencies(task)
+
+        if progress_update is not None:
+            task.update_progress(int(progress_update), user_id)
+
+        if status_update is not None:
+            task.update_status(TaskStatus(status_update), user_id)
 
         # Save changes
         updated_task = await self.storage.update_task(task)
@@ -216,7 +234,7 @@ class TaskManager:
 
         # Use search engine if available and text search is requested
         if self.search and query.search_text:
-            return await self.search.search_tasks(query, user_id)
+            return cast(List[Task], await self.search.search_tasks(query, user_id))
 
         # Otherwise use storage backend
         return await self.storage.search_tasks(query, user_id)
@@ -287,7 +305,10 @@ class TaskManager:
     ) -> Dict[str, Any]:
         """Get comprehensive task statistics"""
         if self.analytics:
-            return await self.analytics.get_task_statistics(project_id, user_id)
+            return cast(
+                Dict[str, Any],
+                await self.analytics.get_task_statistics(project_id, user_id),
+            )
 
         # Basic statistics from storage
         return await self.storage.get_task_statistics(project_id, user_id)
@@ -297,7 +318,10 @@ class TaskManager:
     ) -> Dict[str, Any]:
         """Get user productivity metrics"""
         if self.analytics:
-            return await self.analytics.get_productivity_metrics(user_id, days)
+            return cast(
+                Dict[str, Any],
+                await self.analytics.get_productivity_metrics(user_id, days),
+            )
 
         # Basic metrics calculation
         start_date = datetime.now(timezone.utc) - timedelta(days=days)
@@ -314,27 +338,28 @@ class TaskManager:
 
     # Internal helper methods
     async def _validate_dependencies(self, task: Task) -> None:
-        """Validate task dependencies for cycles using concurrent processing"""
+        """Validate task dependencies for existence and dependency cycles."""
         if not task.dependencies:
             return
-            
-        # Use semaphore to limit concurrency and prevent overwhelming the system
-        semaphore = asyncio.Semaphore(10)
-        
+
         async def check_single_dependency(dep_task_id: str) -> None:
-            async with semaphore:
-                if await self._creates_cycle_optimized(task.id, dep_task_id):
-                    raise ValueError(
-                        f"Dependency would create a cycle: {task.id} -> {dep_task_id}"
-                    )
-        
-        # Process dependencies concurrently
+            if dep_task_id == task.id:
+                raise ValueError(f"Task {task.id} cannot depend on itself")
+
+            dependency = await self.get_task(dep_task_id)
+            if dependency is None:
+                raise ValueError(f"Dependency task {dep_task_id} not found")
+
+            if await self._creates_cycle_optimized(task.id, dep_task_id):
+                raise ValueError(
+                    f"Dependency would create a cycle: {task.id} -> {dep_task_id}"
+                )
+
         dependency_checks = [
-            check_single_dependency(dep.task_id) 
-            for dep in task.dependencies
+            check_single_dependency(dep.task_id) for dep in task.dependencies
         ]
-        
-        await asyncio.gather(*dependency_checks, return_exceptions=True)
+
+        await asyncio.gather(*dependency_checks)
 
     async def _creates_cycle(self, source_id: str, target_id: str) -> bool:
         """Check if adding a dependency would create a cycle (legacy method)"""
@@ -342,32 +367,25 @@ class TaskManager:
 
     async def _creates_cycle_optimized(self, source_id: str, target_id: str) -> bool:
         """Optimized cycle detection using breadth-first search"""
-        visited = set()
-        queue = asyncio.Queue()
-        
-        await queue.put(target_id)
-        
-        while not queue.empty():
-            try:
-                current_node = await asyncio.wait_for(queue.get(), timeout=0.1)
-                
-                if current_node == source_id:
-                    return True
-                    
-                if current_node in visited:
-                    continue
-                    
-                visited.add(current_node)
-                
-                # Add neighbors to queue
-                for neighbor in self._dependency_graph.get(current_node, set()):
-                    if neighbor not in visited:
-                        await queue.put(neighbor)
-                        
-            except asyncio.TimeoutError:
-                # Timeout prevents infinite loops
-                break
-                
+        visited: Set[str] = set()
+        queue = deque([target_id])
+
+        while queue:
+            current_node = queue.popleft()
+
+            if current_node == source_id:
+                return True
+
+            if current_node in visited:
+                continue
+
+            visited.add(current_node)
+            queue.extend(
+                neighbor
+                for neighbor in self._dependency_graph.get(current_node, set())
+                if neighbor not in visited
+            )
+
         return False
 
     def _update_dependency_graph(self, task: Task) -> None:
@@ -393,8 +411,19 @@ class TaskManager:
         query = TaskQuery(project_id=project_id, limit=1000)
         tasks = await self.storage.search_tasks(query, "system")
 
-        completed_tasks = len([t for t in tasks if t.status == TaskStatus.DONE])
-        project.update_progress(completed_tasks, "system")
+        task_count = len(tasks)
+        completed_tasks = len(
+            [
+                t
+                for t in tasks
+                if (t.status.value if hasattr(t.status, "value") else t.status)
+                == TaskStatus.DONE.value
+            ]
+        )
+        project.task_count = task_count
+        project.completed_task_count = completed_tasks
+        progress = round((completed_tasks / task_count) * 100) if task_count else 0
+        project.update_progress(progress, "system")
 
         await self.storage.update_project(project)
         self._project_cache[project_id] = project
@@ -406,7 +435,7 @@ class TaskManager:
         if not completed_tasks:
             return None
 
-        total_hours = 0
+        total_hours = 0.0
         valid_tasks = 0
 
         for task in completed_tasks:
@@ -424,27 +453,26 @@ class TaskManager:
         """Update multiple tasks concurrently with optimized performance"""
         if not task_ids:
             return []
-            
+
         # Use semaphore to limit concurrent database operations
         semaphore = asyncio.Semaphore(50)
-        
+
         async def update_single_task(task_id: str) -> Task:
             async with semaphore:
                 return await self.update_task(task_id, updates, user_id)
-        
+
         # Process tasks concurrently
         update_tasks = [update_single_task(task_id) for task_id in task_ids]
         results = await asyncio.gather(*update_tasks, return_exceptions=True)
-        
+
         # Filter out exceptions and collect successful updates
-        updated_tasks = []
+        updated_tasks: List[Task] = []
         for i, result in enumerate(results):
-            if isinstance(result, Exception):
-                # Log error but continue with other tasks
-                print(f"Failed to update task {task_ids[i]}: {result}")
+            if isinstance(result, BaseException):
+                logger.warning("Failed to update task %s: %s", task_ids[i], result)
             else:
                 updated_tasks.append(result)
-                
+
         return updated_tasks
 
     async def archive_completed_tasks(

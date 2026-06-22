@@ -4,15 +4,57 @@ JSON file-based storage backend
 
 import asyncio
 import json
+import logging
+from collections import OrderedDict
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
-import aiofiles
+from types import TracebackType
+from typing import Any, Dict, List, Optional, TextIO, Type, cast
 
-# Simplified import for CI compatibility
-import asyncio
-import json
-from pathlib import Path
+try:
+    import aiofiles  # type: ignore[import-untyped]
+except ImportError:
+
+    def _open_text_file(path: Path, mode: str) -> TextIO:
+        return cast(TextIO, open(path, mode, encoding="utf-8"))
+
+    class _AsyncFile:
+        """Small aiofiles-compatible fallback for minimal environments."""
+
+        def __init__(self, path: Path, mode: str) -> None:
+            self.path = path
+            self.mode = mode
+            self._file: Optional[TextIO] = None
+
+        async def __aenter__(self) -> "_AsyncFile":
+            self._file = await asyncio.to_thread(_open_text_file, self.path, self.mode)
+            return self
+
+        async def __aexit__(
+            self,
+            exc_type: Optional[Type[BaseException]],
+            exc: Optional[BaseException],
+            tb: Optional[TracebackType],
+        ) -> None:
+            if self._file:
+                await asyncio.to_thread(self._file.close)
+
+        async def read(self) -> str:
+            if self._file is None:
+                raise RuntimeError("File is not open")
+            return await asyncio.to_thread(self._file.read)
+
+        async def write(self, data: str) -> int:
+            if self._file is None:
+                raise RuntimeError("File is not open")
+            return await asyncio.to_thread(self._file.write, data)
+
+    class _AiofilesFallback:
+        @staticmethod
+        def open(path: Path, mode: str) -> _AsyncFile:
+            return _AsyncFile(path, mode)
+
+    aiofiles = _AiofilesFallback()
 
 from taskforge.core.project import Project
 from taskforge.core.queries import TaskQuery
@@ -21,11 +63,18 @@ from taskforge.core.user import User
 from taskforge.storage.base import StorageBackend
 from taskforge.utils.performance import async_timer, time_function
 
+logger = logging.getLogger(__name__)
+
 
 class JSONStorage(StorageBackend):
     """JSON file-based storage implementation with performance optimizations"""
 
-    def __init__(self, data_directory: str = "./data", save_delay: float = 0.5, cache_size: int = 1000):
+    def __init__(
+        self,
+        data_directory: str = "./data",
+        save_delay: float = 0.5,
+        cache_size: int = 1000,
+    ):
         self.data_dir = Path(data_directory)
         self.tasks_file = self.data_dir / "tasks.json"
         self.projects_file = self.data_dir / "projects.json"
@@ -36,7 +85,6 @@ class JSONStorage(StorageBackend):
         self.lazy_load_enabled = True
 
         # In-memory caches with LRU for memory efficiency
-        from collections import OrderedDict
         self._tasks_cache: OrderedDict[str, Task] = OrderedDict()
         self._projects_cache: Dict[str, Project] = {}
         self._users_cache: Dict[str, User] = {}
@@ -57,7 +105,6 @@ class JSONStorage(StorageBackend):
         self._task_priority_index: Dict[str, set[str]] = {}
         self._task_project_index: Dict[str, set[str]] = {}
         self._task_assignee_index: Dict[Optional[str], set[str]] = {}
-        self._task_tags_index: Dict[str, set[str]] = {}
         self._task_tags_index: Dict[str, set[str]] = {}
 
         # Performance monitoring
@@ -85,7 +132,7 @@ class JSONStorage(StorageBackend):
         if self._pending_save_task and not self._pending_save_task.done():
             self._pending_save_task.cancel()
         # Force immediate save on cleanup
-        await self._save_all_data()
+        await self.force_save()
 
     async def _schedule_save(self) -> None:
         """Schedule a delayed save operation"""
@@ -148,7 +195,7 @@ class JSONStorage(StorageBackend):
                 # Save users
                 users_data = []
                 for user in self._users_cache.values():
-                    user_dict = user.model_dump(exclude={"password_hash"})
+                    user_dict = user.to_dict()
                     # Convert sets to lists for JSON serialization
                     if "custom_permissions" in user_dict and isinstance(
                         user_dict["custom_permissions"], set
@@ -163,7 +210,19 @@ class JSONStorage(StorageBackend):
                     await f.write(json.dumps(users_data, indent=2, default=str))
 
         except Exception as e:
-            print(f"Error saving data: {e}")
+            logger.exception("Error saving data: %s", e)
+
+    def _record_cache_result(self, hit: bool) -> None:
+        """Record cache hit or miss statistics."""
+        if hit:
+            self._cache_hits += 1
+        else:
+            self._cache_misses += 1
+
+    @staticmethod
+    def _normalize_tag(tag: str) -> str:
+        """Normalize tags for case-insensitive indexing and lookup."""
+        return tag.strip().lower()
 
     # Index management methods
     def _update_task_indexes(self, task: Task) -> None:
@@ -196,9 +255,10 @@ class JSONStorage(StorageBackend):
 
         # Tags index
         for tag in task.tags:
-            if tag not in self._task_tags_index:
-                self._task_tags_index[tag] = set()
-            self._task_tags_index[tag].add(task.id)
+            normalized_tag = self._normalize_tag(tag)
+            if normalized_tag not in self._task_tags_index:
+                self._task_tags_index[normalized_tag] = set()
+            self._task_tags_index[normalized_tag].add(task.id)
 
     def _remove_task_from_indexes(self, task: Task) -> None:
         """Remove a task from all indexes"""
@@ -225,8 +285,88 @@ class JSONStorage(StorageBackend):
 
         # Remove from tags index
         for tag in task.tags:
-            if tag in self._task_tags_index:
-                self._task_tags_index[tag].discard(task.id)
+            normalized_tag = self._normalize_tag(tag)
+            if normalized_tag in self._task_tags_index:
+                self._task_tags_index[normalized_tag].discard(task.id)
+
+    def _get_tag_candidate_ids(self, tags: List[str], match_all: bool) -> set[str]:
+        """Resolve tag filters to candidate task IDs."""
+        normalized_tags = [self._normalize_tag(tag) for tag in tags if tag.strip()]
+        if not normalized_tags:
+            return set()
+
+        if match_all:
+            candidate_ids: Optional[set[str]] = None
+            for tag in normalized_tags:
+                current_tag_ids = set(self._task_tags_index.get(tag, set()))
+                candidate_ids = (
+                    current_tag_ids
+                    if candidate_ids is None
+                    else candidate_ids & current_tag_ids
+                )
+            return candidate_ids or set()
+
+        tag_ids: set[str] = set()
+        for tag in normalized_tags:
+            tag_ids.update(self._task_tags_index.get(tag, set()))
+        return tag_ids
+
+    @staticmethod
+    def _get_task_sort_value(task: Task, sort_by: str) -> Any:
+        """Return a comparable value for task sorting."""
+        if sort_by == "title":
+            return task.title.lower()
+        if sort_by == "priority":
+            priority_order = {
+                "critical": 5,
+                "high": 4,
+                "medium": 3,
+                "low": 2,
+                "none": 1,
+            }
+            priority = (
+                task.priority.value
+                if hasattr(task.priority, "value")
+                else task.priority
+            )
+            return priority_order.get(str(priority), 0)
+        if sort_by == "status":
+            return task.status.value if hasattr(task.status, "value") else task.status
+        if sort_by == "progress":
+            return task.progress
+        if sort_by == "updated_at":
+            return JSONStorage._datetime_sort_value(task.updated_at)
+        if sort_by == "due_date":
+            return JSONStorage._datetime_sort_value(task.due_date)
+        return JSONStorage._datetime_sort_value(task.created_at)
+
+    @staticmethod
+    def _datetime_sort_value(value: Optional[datetime]) -> Optional[float]:
+        """Convert datetimes to comparable timestamps."""
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value.timestamp()
+
+    @classmethod
+    def _sort_tasks(cls, tasks: List[Task], query: TaskQuery) -> None:
+        """Sort tasks with missing values kept at the end."""
+        if query.sort_desc:
+            tasks.sort(
+                key=lambda task: (
+                    cls._get_task_sort_value(task, query.sort_by) is not None,
+                    cls._get_task_sort_value(task, query.sort_by),
+                ),
+                reverse=True,
+            )
+        else:
+            tasks.sort(
+                key=lambda task: (
+                    cls._get_task_sort_value(task, query.sort_by) is None,
+                    cls._get_task_sort_value(task, query.sort_by),
+                )
+            )
 
     def _rebuild_indexes(self) -> None:
         """Rebuild all indexes from scratch"""
@@ -336,7 +476,7 @@ class JSONStorage(StorageBackend):
             self._tasks_cache.move_to_end(task_id)
             self._cache_hits += 1
             return self._tasks_cache[task_id]
-        
+
         # Load from disk if not in cache (lazy loading)
         if self.lazy_load_enabled:
             task = await self._load_task_from_disk(task_id)
@@ -344,9 +484,10 @@ class JSONStorage(StorageBackend):
                 # Add to cache with LRU management
                 await self._manage_task_cache_size()
                 self._tasks_cache[task_id] = task
+                self._update_task_indexes(task)
                 self._cache_misses += 1
                 return task
-        
+
         # Fallback to full cache load if lazy loading fails or disabled
         if not self._cache_loaded:
             await self._load_cache()
@@ -366,8 +507,8 @@ class JSONStorage(StorageBackend):
                 for task_data in tasks_data:
                     if task_data.get("id") == task_id:
                         return Task(**task_data)
-        except (FileNotFoundError, json.JSONDecodeError, Exception):
-            pass
+        except (FileNotFoundError, json.JSONDecodeError, OSError) as exc:
+            logger.debug("Could not lazy-load task %s: %s", task_id, exc)
         return None
 
     async def _manage_task_cache_size(self) -> None:
@@ -421,32 +562,23 @@ class JSONStorage(StorageBackend):
         if not self._cache_loaded:
             await self._load_cache()
 
-        # Performance optimization: start with smallest candidate set
-        candidate_task_ids = None
-
-        # Use indexes to narrow down candidates
-        index_selectivity = []
+        candidate_task_ids: Optional[set[str]] = None
 
         # Status index (highly selective)
         if query.status:
-            status_ids = set()
+            status_ids: set[str] = set()
             for status in query.status:
                 status_ids.update(self._task_status_index.get(status, set()))
-            index_selectivity.append((len(status_ids), status_ids))
-            if candidate_task_ids is None:
-                candidate_task_ids = status_ids
-            else:
-                candidate_task_ids &= status_ids
+            candidate_task_ids = status_ids
 
         # Priority index (highly selective)
         if query.priority:
-            priority_ids = set()
+            priority_ids: set[str] = set()
             for priority in query.priority:
                 priority_val = (
                     priority.value if hasattr(priority, "value") else str(priority)
                 )
                 priority_ids.update(self._task_priority_index.get(priority_val, set()))
-            index_selectivity.append((len(priority_ids), priority_ids))
             if candidate_task_ids is None:
                 candidate_task_ids = priority_ids
             else:
@@ -455,27 +587,22 @@ class JSONStorage(StorageBackend):
         # Project index (moderately selective)
         if query.project_id:
             project_ids = self._task_project_index.get(query.project_id, set())
-            index_selectivity.append((len(project_ids), project_ids))
             if candidate_task_ids is None:
-                candidate_task_ids = project_ids
+                candidate_task_ids = set(project_ids)
             else:
                 candidate_task_ids &= project_ids
 
         # Assignee index (moderately selective)
         if query.assigned_to:
             assignee_ids = self._task_assignee_index.get(query.assigned_to, set())
-            index_selectivity.append((len(assignee_ids), assignee_ids))
             if candidate_task_ids is None:
-                candidate_task_ids = assignee_ids
+                candidate_task_ids = set(assignee_ids)
             else:
                 candidate_task_ids &= assignee_ids
 
         # Tags index (variable selectivity)
         if query.tags:
-            tag_ids = set()
-            for tag in query.tags:
-                tag_ids.update(self._task_tags_index.get(tag, set()))
-            index_selectivity.append((len(tag_ids), tag_ids))
+            tag_ids = self._get_tag_candidate_ids(query.tags, query.tags_match_all)
             if candidate_task_ids is None:
                 candidate_task_ids = tag_ids
             else:
@@ -514,8 +641,7 @@ class JSONStorage(StorageBackend):
                 or (t.description and search_lower in t.description.lower())
             ]
 
-        # Sort by creation date (newest first)
-        tasks.sort(key=lambda t: t.created_at, reverse=True)
+        self._sort_tasks(tasks, query)
 
         # Apply pagination
         start_idx = query.offset
@@ -539,9 +665,7 @@ class JSONStorage(StorageBackend):
         if not self._cache_loaded:
             await self._load_cache()
 
-        self._cache_hits += (
-            1 if project_id in self._projects_cache else self._cache_misses
-        )
+        self._record_cache_result(project_id in self._projects_cache)
         return self._projects_cache.get(project_id)
 
     async def update_project(self, project: Project) -> Project:
@@ -608,7 +732,7 @@ class JSONStorage(StorageBackend):
         if not self._cache_loaded:
             await self._load_cache()
 
-        self._cache_hits += 1 if user_id in self._users_cache else self._cache_misses
+        self._record_cache_result(user_id in self._users_cache)
         return self._users_cache.get(user_id)
 
     async def get_user_by_username(self, username: str) -> Optional[User]:
@@ -692,12 +816,12 @@ class JSONStorage(StorageBackend):
         )
         overdue_tasks = len([t for t in tasks if t.is_overdue()])
 
-        completion_rate = completed_tasks / total_tasks if total_tasks > 0 else 0
+        completion_rate = completed_tasks / total_tasks if total_tasks > 0 else 0.0
 
         # Priority distribution
-        priority_dist = {}
+        priority_dist: Dict[str, int] = {}
         for task in tasks:
-            priority = (
+            priority = str(
                 task.priority.value
                 if hasattr(task.priority, "value")
                 else task.priority
@@ -705,9 +829,11 @@ class JSONStorage(StorageBackend):
             priority_dist[priority] = priority_dist.get(priority, 0) + 1
 
         # Status distribution
-        status_dist = {}
+        status_dist: Dict[str, int] = {}
         for task in tasks:
-            status = task.status.value if hasattr(task.status, "value") else task.status
+            status = str(
+                task.status.value if hasattr(task.status, "value") else task.status
+            )
             status_dist[status] = status_dist.get(status, 0) + 1
 
         return {
@@ -770,9 +896,11 @@ class JSONStorage(StorageBackend):
             if task.id in self._tasks_cache:
                 raise ValueError(f"Task {task.id} already exists")
             self._tasks_cache[task.id] = task
+            self._update_task_indexes(task)
             created_tasks.append(task)
 
-        await self._save_all_data()
+        self._tasks_dirty = True
+        await self.force_save()
         return created_tasks
 
     async def bulk_update_tasks(self, tasks: List[Task]) -> List[Task]:
@@ -821,11 +949,44 @@ class JSONStorage(StorageBackend):
             await self._load_cache()
 
         return {
-            "tasks": [task.model_dump() for task in self._tasks_cache.values()],
+            "tasks": [task.to_dict() for task in self._tasks_cache.values()],
             "projects": [
-                project.model_dump() for project in self._projects_cache.values()
+                project.to_dict() for project in self._projects_cache.values()
             ],
-            "users": [user.to_public_dict() for user in self._users_cache.values()],
+            "users": [user.to_dict() for user in self._users_cache.values()],
             "version": "1.0.0",
             "exported_at": datetime.now(timezone.utc).isoformat(),
         }
+
+    async def import_data(self, data: Dict[str, Any]) -> bool:
+        """Import tasks, projects, and users from exported data."""
+        if not self._cache_loaded:
+            await self._load_cache()
+
+        try:
+            imported_users = {
+                user.id: user
+                for user in (User(**item) for item in data.get("users", []))
+            }
+            imported_projects = {
+                project.id: project
+                for project in (Project(**item) for item in data.get("projects", []))
+            }
+            imported_tasks = {
+                task.id: task
+                for task in (Task(**item) for item in data.get("tasks", []))
+            }
+
+            self._users_cache.update(imported_users)
+            self._projects_cache.update(imported_projects)
+            self._tasks_cache.update(imported_tasks)
+            self._rebuild_indexes()
+
+            self._users_dirty = bool(imported_users)
+            self._projects_dirty = bool(imported_projects)
+            self._tasks_dirty = bool(imported_tasks)
+            await self.force_save()
+            return True
+        except Exception as exc:
+            logger.exception("Import failed: %s", exc)
+            return False

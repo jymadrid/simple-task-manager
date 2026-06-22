@@ -3,18 +3,19 @@ SQLAlchemy models for database storage
 """
 
 import json
-from datetime import datetime
-from typing import Any, Dict, List, Set
+from datetime import datetime, timezone
+from typing import Any, Dict, cast
 
 from sqlalchemy import JSON, Boolean, Column, DateTime, Float, Integer, String, Text
 from sqlalchemy.dialects.postgresql import ARRAY, UUID
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 
 from taskforge.core.project import Project, ProjectStatus
 from taskforge.core.task import Task, TaskPriority, TaskStatus, TaskType
 from taskforge.core.user import User, UserRole
+from taskforge.utils.values import enum_value
 
-Base = declarative_base()
+Base: Any = declarative_base()
 
 
 class TaskModel(Base):
@@ -38,7 +39,9 @@ class TaskModel(Base):
     project_id = Column(String)
 
     # Temporal fields
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(
+        DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
+    )
     updated_at = Column(DateTime)
     due_date = Column(DateTime)
     start_date = Column(DateTime)
@@ -81,9 +84,9 @@ class TaskModel(Base):
             id=task.id,
             title=task.title,
             description=task.description,
-            status=task.status.value,
-            priority=task.priority.value,
-            task_type=task.task_type.value,
+            status=enum_value(task.status),
+            priority=enum_value(task.priority),
+            task_type=enum_value(task.task_type),
             created_by=task.created_by,
             assigned_to=task.assigned_to,
             project_id=task.project_id,
@@ -95,11 +98,11 @@ class TaskModel(Base):
             tags=list(task.tags),
             labels=task.labels,
             category=task.category,
-            dependencies=[dep.dict() for dep in task.dependencies],
+            dependencies=[dep.model_dump() for dep in task.dependencies],
             subtasks=task.subtasks,
             parent_task=task.parent_task,
             time_tracking=task.time_tracking.__dict__,
-            recurrence=task.recurrence.dict() if task.recurrence else None,
+            recurrence=task.recurrence.model_dump() if task.recurrence else None,
             custom_fields=task.custom_fields,
             activity_log=task.activity_log,
             progress=task.progress,
@@ -112,79 +115,82 @@ class TaskModel(Base):
         """Convert TaskModel to Task"""
         from taskforge.core.task import TaskDependency, TaskRecurrence, TimeTracking
 
+        model = cast(Any, self)
+
         # Convert dependencies
         dependencies = []
-        for dep_data in self.dependencies or []:
+        for dep_data in model.dependencies or []:
             dependencies.append(TaskDependency(**dep_data))
 
         # Convert time tracking
-        time_tracking = TimeTracking(**(self.time_tracking or {}))
+        time_tracking = TimeTracking(**(model.time_tracking or {}))
 
         # Convert recurrence
         recurrence = None
-        if self.recurrence:
-            recurrence = TaskRecurrence(**self.recurrence)
+        if model.recurrence:
+            recurrence = TaskRecurrence(**model.recurrence)
 
         return Task(
-            id=self.id,
-            title=self.title,
-            description=self.description,
-            status=TaskStatus(self.status),
-            priority=TaskPriority(self.priority),
-            task_type=TaskType(self.task_type),
-            created_by=self.created_by,
-            assigned_to=self.assigned_to,
-            project_id=self.project_id,
-            created_at=self.created_at,
-            updated_at=self.updated_at,
-            due_date=self.due_date,
-            start_date=self.start_date,
-            completed_at=self.completed_at,
-            tags=set(self.tags or []),
-            labels=self.labels or [],
-            category=self.category,
+            id=model.id,
+            title=model.title,
+            description=model.description,
+            status=TaskStatus(model.status),
+            priority=TaskPriority(model.priority),
+            task_type=TaskType(model.task_type),
+            created_by=model.created_by,
+            assigned_to=model.assigned_to,
+            project_id=model.project_id,
+            created_at=model.created_at,
+            updated_at=model.updated_at,
+            due_date=model.due_date,
+            start_date=model.start_date,
+            completed_at=model.completed_at,
+            tags=set(model.tags or []),
+            labels=model.labels or [],
+            category=model.category,
             dependencies=dependencies,
-            subtasks=self.subtasks or [],
-            parent_task=self.parent_task,
+            subtasks=model.subtasks or [],
+            parent_task=model.parent_task,
             time_tracking=time_tracking,
             recurrence=recurrence,
-            custom_fields=self.custom_fields or {},
-            activity_log=self.activity_log or [],
-            progress=self.progress or 0,
-            completion_criteria=self.completion_criteria or [],
-            external_links=self.external_links or {},
-            integration_data=self.integration_data or {},
+            custom_fields=model.custom_fields or {},
+            activity_log=model.activity_log or [],
+            progress=model.progress or 0,
+            completion_criteria=model.completion_criteria or [],
+            external_links=model.external_links or {},
+            integration_data=model.integration_data or {},
         )
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for updates"""
+        model = cast(Any, self)
         return {
-            "title": self.title,
-            "description": self.description,
-            "status": self.status,
-            "priority": self.priority,
-            "task_type": self.task_type,
-            "created_by": self.created_by,
-            "assigned_to": self.assigned_to,
-            "project_id": self.project_id,
-            "updated_at": self.updated_at,
-            "due_date": self.due_date,
-            "start_date": self.start_date,
-            "completed_at": self.completed_at,
-            "tags": self.tags,
-            "labels": self.labels,
-            "category": self.category,
-            "dependencies": self.dependencies,
-            "subtasks": self.subtasks,
-            "parent_task": self.parent_task,
-            "time_tracking": self.time_tracking,
-            "recurrence": self.recurrence,
-            "custom_fields": self.custom_fields,
-            "activity_log": self.activity_log,
-            "progress": self.progress,
-            "completion_criteria": self.completion_criteria,
-            "external_links": self.external_links,
-            "integration_data": self.integration_data,
+            "title": model.title,
+            "description": model.description,
+            "status": model.status,
+            "priority": model.priority,
+            "task_type": model.task_type,
+            "created_by": model.created_by,
+            "assigned_to": model.assigned_to,
+            "project_id": model.project_id,
+            "updated_at": model.updated_at,
+            "due_date": model.due_date,
+            "start_date": model.start_date,
+            "completed_at": model.completed_at,
+            "tags": model.tags,
+            "labels": model.labels,
+            "category": model.category,
+            "dependencies": model.dependencies,
+            "subtasks": model.subtasks,
+            "parent_task": model.parent_task,
+            "time_tracking": model.time_tracking,
+            "recurrence": model.recurrence,
+            "custom_fields": model.custom_fields,
+            "activity_log": model.activity_log,
+            "progress": model.progress,
+            "completion_criteria": model.completion_criteria,
+            "external_links": model.external_links,
+            "integration_data": model.integration_data,
         }
 
 
@@ -208,7 +214,9 @@ class ProjectModel(Base):
     team_members = Column(JSON, default=list)  # List of user IDs
 
     # Temporal fields
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(
+        DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
+    )
     updated_at = Column(DateTime)
     start_date = Column(DateTime)
     end_date = Column(DateTime)
@@ -241,7 +249,7 @@ class ProjectModel(Base):
             id=project.id,
             name=project.name,
             description=project.description,
-            status=project.status.value,
+            status=enum_value(project.status),
             color=project.color,
             icon=project.icon,
             owner_id=project.owner_id,
@@ -265,56 +273,58 @@ class ProjectModel(Base):
 
     def to_project(self) -> Project:
         """Convert ProjectModel to Project"""
+        model = cast(Any, self)
         return Project(
-            id=self.id,
-            name=self.name,
-            description=self.description,
-            status=ProjectStatus(self.status),
-            color=self.color,
-            icon=self.icon,
-            owner_id=self.owner_id,
-            team_members=set(self.team_members or []),
-            created_at=self.created_at,
-            updated_at=self.updated_at,
-            start_date=self.start_date,
-            end_date=self.end_date,
-            tags=set(self.tags or []),
-            category=self.category,
-            progress=self.progress or 0,
-            task_count=self.task_count or 0,
-            completed_task_count=self.completed_task_count or 0,
-            budget=self.budget,
-            estimated_hours=self.estimated_hours,
-            actual_hours=self.actual_hours or 0.0,
-            custom_fields=self.custom_fields or {},
-            settings=self.settings or {},
-            activity_log=self.activity_log or [],
+            id=model.id,
+            name=model.name,
+            description=model.description,
+            status=ProjectStatus(model.status),
+            color=model.color,
+            icon=model.icon,
+            owner_id=model.owner_id,
+            team_members=set(model.team_members or []),
+            created_at=model.created_at,
+            updated_at=model.updated_at,
+            start_date=model.start_date,
+            end_date=model.end_date,
+            tags=set(model.tags or []),
+            category=model.category,
+            progress=model.progress or 0,
+            task_count=model.task_count or 0,
+            completed_task_count=model.completed_task_count or 0,
+            budget=model.budget,
+            estimated_hours=model.estimated_hours,
+            actual_hours=model.actual_hours or 0.0,
+            custom_fields=model.custom_fields or {},
+            settings=model.settings or {},
+            activity_log=model.activity_log or [],
         )
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for updates"""
+        model = cast(Any, self)
         return {
-            "name": self.name,
-            "description": self.description,
-            "status": self.status,
-            "color": self.color,
-            "icon": self.icon,
-            "owner_id": self.owner_id,
-            "team_members": self.team_members,
-            "updated_at": self.updated_at,
-            "start_date": self.start_date,
-            "end_date": self.end_date,
-            "tags": self.tags,
-            "category": self.category,
-            "progress": self.progress,
-            "task_count": self.task_count,
-            "completed_task_count": self.completed_task_count,
-            "budget": self.budget,
-            "estimated_hours": self.estimated_hours,
-            "actual_hours": self.actual_hours,
-            "custom_fields": self.custom_fields,
-            "settings": self.settings,
-            "activity_log": self.activity_log,
+            "name": model.name,
+            "description": model.description,
+            "status": model.status,
+            "color": model.color,
+            "icon": model.icon,
+            "owner_id": model.owner_id,
+            "team_members": model.team_members,
+            "updated_at": model.updated_at,
+            "start_date": model.start_date,
+            "end_date": model.end_date,
+            "tags": model.tags,
+            "category": model.category,
+            "progress": model.progress,
+            "task_count": model.task_count,
+            "completed_task_count": model.completed_task_count,
+            "budget": model.budget,
+            "estimated_hours": model.estimated_hours,
+            "actual_hours": model.actual_hours,
+            "custom_fields": model.custom_fields,
+            "settings": model.settings,
+            "activity_log": model.activity_log,
         }
 
 
@@ -342,7 +352,9 @@ class UserModel(Base):
     profile = Column(JSON, default=dict)
 
     # Temporal fields
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(
+        DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
+    )
     updated_at = Column(DateTime)
     last_login = Column(DateTime)
 
@@ -364,9 +376,9 @@ class UserModel(Base):
             password_hash=user.password_hash,
             is_active=user.is_active,
             is_verified=user.is_verified,
-            role=user.role.value,
-            custom_permissions=[perm.value for perm in user.custom_permissions],
-            profile=user.profile.dict(),
+            role=enum_value(user.role),
+            custom_permissions=[enum_value(perm) for perm in user.custom_permissions],
+            profile=user.profile.model_dump(),
             created_at=user.created_at,
             updated_at=user.updated_at,
             last_login=user.last_login,
@@ -379,51 +391,54 @@ class UserModel(Base):
         """Convert UserModel to User"""
         from taskforge.core.user import Permission, UserProfile
 
+        model = cast(Any, self)
+
         # Convert custom permissions
         custom_permissions = set()
-        for perm_str in self.custom_permissions or []:
+        for perm_str in model.custom_permissions or []:
             try:
                 custom_permissions.add(Permission(perm_str))
             except ValueError:
                 pass  # Skip invalid permissions
 
         # Convert profile
-        profile = UserProfile(**(self.profile or {}))
+        profile = UserProfile(**(model.profile or {}))
 
         return User(
-            id=self.id,
-            username=self.username,
-            email=self.email,
-            full_name=self.full_name,
-            password_hash=self.password_hash,
-            is_active=self.is_active,
-            is_verified=self.is_verified,
-            role=UserRole(self.role),
+            id=model.id,
+            username=model.username,
+            email=model.email,
+            full_name=model.full_name,
+            password_hash=model.password_hash,
+            is_active=model.is_active,
+            is_verified=model.is_verified,
+            role=UserRole(model.role),
             custom_permissions=custom_permissions,
             profile=profile,
-            created_at=self.created_at,
-            updated_at=self.updated_at,
-            last_login=self.last_login,
-            teams=set(self.teams or []),
-            activity_log=self.activity_log or [],
-            settings=self.settings or {},
+            created_at=model.created_at,
+            updated_at=model.updated_at,
+            last_login=model.last_login,
+            teams=set(model.teams or []),
+            activity_log=model.activity_log or [],
+            settings=model.settings or {},
         )
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for updates"""
+        model = cast(Any, self)
         return {
-            "username": self.username,
-            "email": self.email,
-            "full_name": self.full_name,
-            "password_hash": self.password_hash,
-            "is_active": self.is_active,
-            "is_verified": self.is_verified,
-            "role": self.role,
-            "custom_permissions": self.custom_permissions,
-            "profile": self.profile,
-            "updated_at": self.updated_at,
-            "last_login": self.last_login,
-            "teams": self.teams,
-            "activity_log": self.activity_log,
-            "settings": self.settings,
+            "username": model.username,
+            "email": model.email,
+            "full_name": model.full_name,
+            "password_hash": model.password_hash,
+            "is_active": model.is_active,
+            "is_verified": model.is_verified,
+            "role": model.role,
+            "custom_permissions": model.custom_permissions,
+            "profile": model.profile,
+            "updated_at": model.updated_at,
+            "last_login": model.last_login,
+            "teams": model.teams,
+            "activity_log": model.activity_log,
+            "settings": model.settings,
         }

@@ -1,23 +1,26 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
 from taskforge.api.routers import projects, tasks, users
 
-from .dependencies import storage  # Import storage to initialize it  # noqa: F401
+from .dependencies import get_storage, storage  # noqa: F401
 from .websockets import manager
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Initialize shared resources during application startup."""
+    await get_storage()
+    yield
+
 
 app = FastAPI(
     title="TaskForge API",
     description="A flexible and powerful API for task management.",
     version="0.1.0",
+    lifespan=lifespan,
 )
-
-
-@app.on_event("startup")
-async def startup_event():
-    """Initialize storage on startup"""
-    from .dependencies import get_storage
-
-    await get_storage()
 
 
 @app.get("/health")

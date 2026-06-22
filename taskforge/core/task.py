@@ -2,7 +2,7 @@
 Core task model with advanced features
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set
@@ -52,11 +52,7 @@ class TimeTracking:
 
     estimated_hours: Optional[float] = None
     actual_hours: float = 0.0
-    time_entries: List[Dict[str, Any]] = None
-
-    def __post_init__(self) -> None:
-        if self.time_entries is None:
-            self.time_entries = []
+    time_entries: List[Dict[str, Any]] = field(default_factory=list)
 
 
 class TaskRecurrence(BaseModel):
@@ -143,10 +139,6 @@ class Task(BaseModel):
 
     model_config = ConfigDict(
         use_enum_values=True,
-        json_encoders={
-            datetime: lambda v: v.isoformat(),
-            set: list,
-        },
     )
 
     @field_validator("updated_at", mode="before")
@@ -191,17 +183,20 @@ class Task(BaseModel):
         old_status = self.status
         self.status = new_status
 
-        if new_status == TaskStatus.DONE:
+        old_status_value = self._enum_value(old_status)
+        new_status_value = self._enum_value(new_status)
+
+        if new_status_value == TaskStatus.DONE.value:
             self.completed_at = datetime.now(timezone.utc)
             self.progress = 100
-        elif old_status == TaskStatus.DONE:
+        elif old_status_value == TaskStatus.DONE.value:
             self.completed_at = None
 
         self._log_activity(
             "status_changed",
             {
-                "old_status": old_status.value,
-                "new_status": new_status.value,
+                "old_status": old_status_value,
+                "new_status": new_status_value,
                 "user_id": user_id,
             },
         )
@@ -210,10 +205,11 @@ class Task(BaseModel):
         """Update task progress"""
         old_progress = self.progress
         self.progress = max(0, min(100, progress))
+        status_value = self._enum_value(self.status)
 
-        if self.progress == 100 and self.status != TaskStatus.DONE:
+        if self.progress == 100 and status_value != TaskStatus.DONE.value:
             self.update_status(TaskStatus.DONE, user_id)
-        elif self.progress < 100 and self.status == TaskStatus.DONE:
+        elif self.progress < 100 and status_value == TaskStatus.DONE.value:
             self.update_status(TaskStatus.IN_PROGRESS, user_id)
 
         self._log_activity(
@@ -241,7 +237,11 @@ class Task(BaseModel):
 
     def is_overdue(self) -> bool:
         """Check if task is overdue"""
-        if not self.due_date or self.status in [TaskStatus.DONE, TaskStatus.CANCELLED]:
+        status_value = self._enum_value(self.status)
+        if not self.due_date or status_value in {
+            TaskStatus.DONE.value,
+            TaskStatus.CANCELLED.value,
+        }:
             return False
         now = datetime.now(timezone.utc)
         due = self.due_date
@@ -269,6 +269,11 @@ class Task(BaseModel):
     def get_blocked_dependencies(self) -> List[str]:
         """Get list of tasks that are blocking this task"""
         return [d.task_id for d in self.dependencies if d.dependency_type == "blocks"]
+
+    @staticmethod
+    def _enum_value(value: Any) -> str:
+        """Return a stable string value for enum-like fields."""
+        return str(getattr(value, "value", value))
 
     def _log_activity(self, action: str, data: Dict[str, Any]) -> None:
         """Log activity for audit trail"""

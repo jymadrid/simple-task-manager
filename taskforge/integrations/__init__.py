@@ -4,18 +4,25 @@ Data export and import utilities
 
 import csv
 import json
-import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from io import StringIO
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-import yaml
+try:
+    from defusedxml import ElementTree as ET
+except ImportError:  # pragma: no cover - used when optional hardening is absent
+    import xml.etree.ElementTree as ET  # nosec B405
 
 from taskforge.core.project import Project
 from taskforge.core.task import Task
 from taskforge.core.user import User
 from taskforge.storage.base import StorageBackend
+
+
+def enum_value(value: Any) -> str:
+    """Return a stable string value for enum-like fields."""
+    return str(getattr(value, "value", value))
 
 
 class DataExporter:
@@ -33,7 +40,7 @@ class DataExporter:
         query = TaskQuery(project_id=project_id, assigned_to=user_id, limit=10000)
         tasks = await self.storage.search_tasks(query, user_id or "system")
 
-        tasks_data = [task.dict() for task in tasks]
+        tasks_data = [task.to_dict() for task in tasks]
 
         export_data = {
             "export_type": "tasks",
@@ -85,9 +92,9 @@ class DataExporter:
                     task.id,
                     task.title,
                     task.description or "",
-                    task.status.value,
-                    task.priority.value,
-                    task.task_type.value,
+                    enum_value(task.status),
+                    enum_value(task.priority),
+                    enum_value(task.task_type),
                     task.created_by or "",
                     task.assigned_to or "",
                     task.project_id or "",
@@ -126,7 +133,7 @@ class DataExporter:
         # Group tasks by status
         status_groups = {}
         for task in tasks:
-            status = task.status.value
+            status = enum_value(task.status)
             if status not in status_groups:
                 status_groups[status] = []
             status_groups[status].append(task)
@@ -143,8 +150,8 @@ class DataExporter:
                     md_content.append(f"{task.description}")
 
                 details = []
-                details.append(f"**Priority:** {task.priority.value}")
-                details.append(f"**Type:** {task.task_type.value}")
+                details.append(f"**Priority:** {enum_value(task.priority)}")
+                details.append(f"**Type:** {enum_value(task.task_type)}")
                 details.append(f"**Progress:** {task.progress}%")
 
                 if task.assigned_to:
@@ -180,10 +187,12 @@ class DataExporter:
                 "id": project.id,
                 "name": project.name,
                 "description": project.description,
-                "status": project.status.value,
+                "status": enum_value(project.status),
                 "progress": project.progress,
                 "task_count": len(tasks),
-                "completed_tasks": len([t for t in tasks if t.status.value == "done"]),
+                "completed_tasks": len(
+                    [t for t in tasks if enum_value(t.status) == "done"]
+                ),
                 "created_at": (
                     project.created_at.isoformat() if project.created_at else None
                 ),
@@ -418,7 +427,7 @@ class DataImporter:
                     # Create project
                     project = Project(
                         name=project_name,
-                        description=f"Imported from Asana",
+                        description="Imported from Asana",
                         owner_id=user_id,
                     )
                     created_project = await self.storage.create_project(project)

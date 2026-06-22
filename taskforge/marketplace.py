@@ -907,7 +907,7 @@ async def demo_plugin_marketplace():
                 version_reviewed="2.1.0",
             )
 
-            print(f"   ⭐ Added reviews for Slack integration plugin")
+            print("   ⭐ Added reviews for Slack integration plugin")
 
         except Exception as e:
             print(f"   ❌ Error adding reviews: {e}")
@@ -954,7 +954,7 @@ async def demo_plugin_marketplace():
             )
 
             if plugin_details.get("recent_reviews"):
-                print(f"      Recent Reviews:")
+                print("      Recent Reviews:")
                 for review in plugin_details["recent_reviews"][:2]:
                     print(f"        ⭐ {review['rating']}/5 - {review['title']}")
                     print(

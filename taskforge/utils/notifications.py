@@ -6,16 +6,17 @@ import asyncio
 import logging
 import smtplib
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
 from taskforge.core.project import Project
 from taskforge.core.task import Task
 from taskforge.core.user import User
+from taskforge.utils.values import enum_title
 
 logger = logging.getLogger(__name__)
 
@@ -41,11 +42,7 @@ class NotificationTemplate:
     subject: str
     body_text: str
     body_html: Optional[str] = None
-    variables: Dict[str, str] = None
-
-    def __post_init__(self):
-        if self.variables is None:
-            self.variables = {}
+    variables: Dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -58,16 +55,10 @@ class Notification:
     subject: str
     content: str
     html_content: Optional[str] = None
-    created_at: datetime = None
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     sent_at: Optional[datetime] = None
     read_at: Optional[datetime] = None
-    metadata: Dict[str, Any] = None
-
-    def __post_init__(self):
-        if self.created_at is None:
-            self.created_at = datetime.now(timezone.utc)
-        if self.metadata is None:
-            self.metadata = {}
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
 
 class NotificationChannel(ABC):
@@ -151,7 +142,7 @@ class EmailChannel(NotificationChannel):
 class InAppChannel(NotificationChannel):
     """In-application notification channel"""
 
-    def __init__(self, storage_backend):
+    def __init__(self, storage_backend: Any):
         self.storage = storage_backend
 
     async def send(self, notification: Notification, recipient: User) -> bool:
@@ -192,7 +183,7 @@ class SlackChannel(NotificationChannel):
 class NotificationManager:
     """Central notification management system"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.channels: Dict[str, NotificationChannel] = {}
         self.templates: Dict[NotificationType, NotificationTemplate] = {}
         self.user_preferences: Dict[str, Dict[NotificationType, List[str]]] = {}
@@ -200,7 +191,7 @@ class NotificationManager:
         # Initialize default templates
         self._initialize_default_templates()
 
-    def add_channel(self, name: str, channel: NotificationChannel):
+    def add_channel(self, name: str, channel: NotificationChannel) -> None:
         """Add a notification channel"""
         if channel.is_available():
             self.channels[name] = channel
@@ -210,13 +201,13 @@ class NotificationManager:
 
     def set_template(
         self, notification_type: NotificationType, template: NotificationTemplate
-    ):
+    ) -> None:
         """Set a notification template"""
         self.templates[notification_type] = template
 
     def set_user_preferences(
         self, user_id: str, preferences: Dict[NotificationType, List[str]]
-    ):
+    ) -> None:
         """Set user notification preferences"""
         self.user_preferences[user_id] = preferences
 
@@ -254,7 +245,7 @@ class NotificationManager:
             channels = self.get_user_channels(recipient.id, notification_type)
 
         # Send through each channel
-        results = {}
+        results: Dict[str, bool] = {}
         for channel_name in channels:
             if channel_name in self.channels:
                 try:
@@ -274,7 +265,9 @@ class NotificationManager:
 
         return results
 
-    async def send_task_assigned(self, task: Task, assignee: User, assigner: User):
+    async def send_task_assigned(
+        self, task: Task, assignee: User, assigner: User
+    ) -> Dict[str, bool]:
         """Send task assignment notification"""
         context = {
             "task_title": task.title,
@@ -285,37 +278,45 @@ class NotificationManager:
             "due_date": (
                 task.due_date.strftime("%Y-%m-%d") if task.due_date else "No due date"
             ),
-            "priority": task.priority.value.title(),
+            "priority": enum_title(task.priority),
         }
 
         return await self.send_notification(
             NotificationType.TASK_ASSIGNED, assignee, context
         )
 
-    async def send_task_due_soon(self, task: Task, assignee: User, days_until_due: int):
+    async def send_task_due_soon(
+        self, task: Task, assignee: User, days_until_due: int
+    ) -> Dict[str, bool]:
         """Send task due soon notification"""
         context = {
             "task_title": task.title,
             "task_id": task.id[:8],
             "assignee_name": assignee.full_name or assignee.username,
-            "due_date": task.due_date.strftime("%Y-%m-%d"),
+            "due_date": (
+                task.due_date.strftime("%Y-%m-%d") if task.due_date else "No due date"
+            ),
             "days_until_due": str(days_until_due),
-            "priority": task.priority.value.title(),
+            "priority": enum_title(task.priority),
         }
 
         return await self.send_notification(
             NotificationType.TASK_DUE_SOON, assignee, context
         )
 
-    async def send_task_overdue(self, task: Task, assignee: User, days_overdue: int):
+    async def send_task_overdue(
+        self, task: Task, assignee: User, days_overdue: int
+    ) -> Dict[str, bool]:
         """Send task overdue notification"""
         context = {
             "task_title": task.title,
             "task_id": task.id[:8],
             "assignee_name": assignee.full_name or assignee.username,
-            "due_date": task.due_date.strftime("%Y-%m-%d"),
+            "due_date": (
+                task.due_date.strftime("%Y-%m-%d") if task.due_date else "No due date"
+            ),
             "days_overdue": str(days_overdue),
-            "priority": task.priority.value.title(),
+            "priority": enum_title(task.priority),
         }
 
         return await self.send_notification(
@@ -323,15 +324,15 @@ class NotificationManager:
         )
 
     async def send_bulk_notifications(
-        self, notifications: List[tuple[NotificationType, User, Dict[str, Any]]]
-    ) -> Dict[str, Dict[str, bool]]:
+        self, notifications: List[Tuple[NotificationType, User, Dict[str, Any]]]
+    ) -> Dict[str, Dict[str, Union[bool, str]]]:
         """Send multiple notifications efficiently"""
-        tasks = []
+        tasks: List[Tuple[str, Any]] = []
         for notification_type, recipient, context in notifications:
             task = self.send_notification(notification_type, recipient, context)
             tasks.append((f"{recipient.id}_{notification_type.value}", task))
 
-        results = {}
+        results: Dict[str, Dict[str, Union[bool, str]]] = {}
         completed_tasks = await asyncio.gather(
             *[task for _, task in tasks], return_exceptions=True
         )
@@ -341,7 +342,7 @@ class NotificationManager:
                 logger.error(f"Bulk notification failed for {key}: {result}")
                 results[key] = {"error": str(result)}
             else:
-                results[key] = result
+                results[key] = cast(Dict[str, Union[bool, str]], result)
 
         return results
 
@@ -380,7 +381,7 @@ class NotificationManager:
             logger.warning(f"Missing template variable: {e}")
             return text
 
-    def _initialize_default_templates(self):
+    def _initialize_default_templates(self) -> None:
         """Initialize default notification templates"""
 
         # Task assigned template

@@ -49,7 +49,7 @@ def test_health_check():
 
 # --- User Endpoint Tests ---
 def test_create_user(mock_task_manager):
-    user_data = {"username": "newuser", "email": "new@example.com", "password": "pwd"}
+    user_data = {"username": "newuser", "email": "new@example.com", "password": "pwd1"}
     mock_task_manager.storage.create_user.return_value = User(id="new-id", **user_data)
 
     response = client.post("/api/v1/users/", json=user_data)
@@ -114,6 +114,53 @@ def test_create_task(mock_task_manager):
     response = client.post("/api/v1/tasks/", json=task_data)
     assert response.status_code == 201
     assert response.json()["title"] == "Test Task"
+
+
+def test_list_tasks_with_filters(mock_task_manager):
+    mock_project = Project(id="proj-123", name="My Project", owner_id="user-test-id")
+    mock_task_manager.get_project.return_value = mock_project
+    mock_task_manager.search_tasks.return_value = [
+        Task(
+            id="task-123",
+            title="Filtered Task",
+            project_id=mock_project.id,
+            priority=TaskPriority.HIGH,
+            status=TaskStatus.IN_PROGRESS,
+            tags={"backend", "api"},
+        )
+    ]
+
+    response = client.get(
+        "/api/v1/tasks/",
+        params=[
+            ("project_id", mock_project.id),
+            ("status", "in_progress"),
+            ("priority", "high"),
+            ("tags", "backend"),
+            ("tags", "api"),
+            ("search", "filtered"),
+            ("limit", "10"),
+            ("offset", "5"),
+            ("sort_by", "priority"),
+            ("sort_desc", "true"),
+            ("tags_match_all", "false"),
+        ],
+    )
+
+    assert response.status_code == 200
+    assert response.json()[0]["title"] == "Filtered Task"
+
+    query = mock_task_manager.search_tasks.call_args.args[0]
+    assert query.project_id == mock_project.id
+    assert query.status == [TaskStatus.IN_PROGRESS]
+    assert query.priority == [TaskPriority.HIGH]
+    assert query.tags == ["backend", "api"]
+    assert query.search_text == "filtered"
+    assert query.limit == 10
+    assert query.offset == 5
+    assert query.sort_by == "priority"
+    assert query.sort_desc is True
+    assert query.tags_match_all is False
 
 
 def test_get_task(mock_task_manager):

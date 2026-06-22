@@ -3,6 +3,7 @@ Modern CLI interface using Typer
 """
 
 import asyncio
+import secrets
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
@@ -31,6 +32,9 @@ console = Console()
 
 # Global manager instance
 manager: Optional[TaskManager] = None
+manager_initialized = False
+DEFAULT_CLI_USER_ID = "default_user"
+DEFAULT_CLI_USERNAME = "default"
 
 
 def get_manager() -> TaskManager:
@@ -41,6 +45,66 @@ def get_manager() -> TaskManager:
         storage = JSONStorage(config.data_directory)
         manager = TaskManager(storage)
     return manager
+
+
+async def get_ready_manager() -> TaskManager:
+    """Return an initialized manager with a default local CLI user."""
+    global manager_initialized
+
+    mgr = get_manager()
+    if not manager_initialized:
+        await mgr.storage.initialize()
+        manager_initialized = True
+
+    await ensure_default_user(mgr)
+    return mgr
+
+
+async def ensure_default_user(mgr: TaskManager) -> User:
+    """Create the local demo user used by unauthenticated CLI commands."""
+    user = await mgr.storage.get_user(DEFAULT_CLI_USER_ID)
+    if user:
+        return user
+
+    user = await mgr.storage.get_user_by_username(DEFAULT_CLI_USERNAME)
+    if user:
+        return user
+
+    user = User.create_user(
+        username=DEFAULT_CLI_USERNAME,
+        email="default@taskforge.local",
+        password=secrets.token_urlsafe(32),
+        full_name="TaskForge Local User",
+        role=UserRole.MANAGER,
+    )
+    user.id = DEFAULT_CLI_USER_ID
+    created_user = await mgr.storage.create_user(user)
+    await flush_storage(mgr)
+    return created_user
+
+
+async def flush_storage(mgr: TaskManager) -> None:
+    """Persist pending CLI writes before the process exits."""
+    force_save = getattr(mgr.storage, "force_save", None)
+    if force_save:
+        await force_save()
+
+
+def enum_value(value: object) -> str:
+    """Return a stable display value for Enum or string-backed model fields."""
+    return str(getattr(value, "value", value))
+
+
+def parse_cli_date(
+    value: Optional[str], *, end_of_day: bool = False
+) -> Optional[datetime]:
+    """Parse CLI date filters in YYYY-MM-DD format."""
+    if not value:
+        return None
+    parsed = datetime.strptime(value, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    if end_of_day:
+        return parsed.replace(hour=23, minute=59, second=59, microsecond=999999)
+    return parsed
 
 
 # Task Commands
@@ -67,7 +131,7 @@ def add_task(
     """Add a new task"""
 
     async def _add_task():
-        mgr = get_manager()
+        mgr = await get_ready_manager()
 
         # Parse due date
         due_dt = None
@@ -91,8 +155,9 @@ def add_task(
 
         try:
             created_task = await mgr.create_task(
-                task, "default_user"
+                task, DEFAULT_CLI_USER_ID
             )  # TODO: Get from auth
+            await flush_storage(mgr)
             rprint(
                 f"[green]✅ Task created: {created_task.title} (ID: {created_task.id[:8]})[/green]"
             )
@@ -114,26 +179,56 @@ def list_tasks(
     assigned: Optional[str] = typer.Option(
         None, "--assigned", help="Filter by assignee"
     ),
+    tags: Optional[List[str]] = typer.Option(None, "--tag", help="Filter by tag"),
+    match_any_tag: bool = typer.Option(
+        False, "--match-any-tag", help="Match any tag instead of all tags"
+    ),
+    search: Optional[str] = typer.Option(None, "-q", "--search", help="Search text"),
+    due_after: Optional[str] = typer.Option(
+        None, "--due-after", help="Only show tasks due on or after YYYY-MM-DD"
+    ),
+    due_before: Optional[str] = typer.Option(
+        None, "--due-before", help="Only show tasks due on or before YYYY-MM-DD"
+    ),
     limit: int = typer.Option(20, "-l", "--limit", help="Number of tasks to show"),
+    offset: int = typer.Option(0, "--offset", help="Number of tasks to skip"),
+    sort_by: str = typer.Option(
+        "created_at",
+        "--sort-by",
+        help="Sort by created_at, updated_at, due_date, priority, status, title, or progress",
+    ),
+    ascending: bool = typer.Option(False, "--ascending", help="Sort ascending"),
     overdue: bool = typer.Option(False, "--overdue", help="Show only overdue tasks"),
 ):
     """List tasks with filtering options"""
 
     async def _list_tasks():
-        mgr = get_manager()
+        mgr = await get_ready_manager()
 
         # Special case for overdue tasks
         if overdue:
-            tasks = await mgr.get_overdue_tasks("default_user")
+            tasks = await mgr.get_overdue_tasks(DEFAULT_CLI_USER_ID)
         else:
-            query = TaskQuery(
-                status=status,
-                priority=priority,
-                project_id=project,
-                assigned_to=assigned,
-                limit=limit,
-            )
-            tasks = await mgr.search_tasks(query, "default_user")
+            try:
+                query = TaskQuery(
+                    status=status,
+                    priority=priority,
+                    project_id=project,
+                    assigned_to=assigned,
+                    tags=tags,
+                    search_text=search,
+                    due_after=parse_cli_date(due_after),
+                    due_before=parse_cli_date(due_before, end_of_day=True),
+                    limit=limit,
+                    offset=offset,
+                    sort_by=sort_by,
+                    sort_desc=not ascending,
+                    tags_match_all=not match_any_tag,
+                )
+            except ValueError as e:
+                rprint(f"[red]❌ Invalid query: {e}[/red]")
+                return
+            tasks = await mgr.search_tasks(query, DEFAULT_CLI_USER_ID)
 
         if not tasks:
             rprint("[yellow]No tasks found[/yellow]")
@@ -149,23 +244,28 @@ def list_tasks(
         table.add_column("Progress", justify="center")
 
         for task in tasks:
+            status_value = enum_value(task.status)
+            priority_value = enum_value(task.priority)
+
             # Status styling
             status_color = {
-                TaskStatus.TODO: "white",
-                TaskStatus.IN_PROGRESS: "blue",
-                TaskStatus.BLOCKED: "red",
-                TaskStatus.REVIEW: "yellow",
-                TaskStatus.DONE: "green",
-                TaskStatus.CANCELLED: "dim",
-            }.get(task.status, "white")
+                TaskStatus.TODO.value: "white",
+                TaskStatus.IN_PROGRESS.value: "blue",
+                TaskStatus.BLOCKED.value: "red",
+                TaskStatus.REVIEW.value: "yellow",
+                TaskStatus.DONE.value: "green",
+                TaskStatus.CANCELLED.value: "dim",
+                TaskStatus.ARCHIVED.value: "dim",
+            }.get(status_value, "white")
 
             # Priority styling
             priority_color = {
-                TaskPriority.CRITICAL: "red",
-                TaskPriority.HIGH: "orange",
-                TaskPriority.MEDIUM: "yellow",
-                TaskPriority.LOW: "green",
-            }.get(task.priority, "white")
+                TaskPriority.CRITICAL.value: "red",
+                TaskPriority.HIGH.value: "orange",
+                TaskPriority.MEDIUM.value: "yellow",
+                TaskPriority.LOW.value: "green",
+                TaskPriority.NONE.value: "dim",
+            }.get(priority_value, "white")
 
             # Due date formatting
             due_str = ""
@@ -187,8 +287,8 @@ def list_tasks(
             table.add_row(
                 task.id[:8],
                 task.title,
-                f"[{status_color}]{task.status.value}[/{status_color}]",
-                f"[{priority_color}]{task.priority.value}[/{priority_color}]",
+                f"[{status_color}]{status_value}[/{status_color}]",
+                f"[{priority_color}]{priority_value}[/{priority_color}]",
                 due_str,
                 progress_str,
             )
@@ -203,7 +303,7 @@ def show_task(task_id: str = typer.Argument(..., help="Task ID")):
     """Show detailed task information"""
 
     async def _show_task():
-        mgr = get_manager()
+        mgr = await get_ready_manager()
         task = await mgr.get_task(task_id)
 
         if not task:
@@ -214,9 +314,9 @@ def show_task(task_id: str = typer.Argument(..., help="Task ID")):
         details = f"""
 [bold]Title:[/bold] {task.title}
 [bold]ID:[/bold] {task.id}
-[bold]Status:[/bold] {task.status.value}
-[bold]Priority:[/bold] {task.priority.value}
-[bold]Type:[/bold] {task.task_type.value}
+[bold]Status:[/bold] {enum_value(task.status)}
+[bold]Priority:[/bold] {enum_value(task.priority)}
+[bold]Type:[/bold] {enum_value(task.task_type)}
 [bold]Progress:[/bold] {task.progress}%
 [bold]Created:[/bold] {task.created_at.strftime('%Y-%m-%d %H:%M')}
 """
@@ -262,7 +362,7 @@ def update_task(
     """Update an existing task"""
 
     async def _update_task():
-        mgr = get_manager()
+        mgr = await get_ready_manager()
 
         # Build updates dict
         updates = {}
@@ -282,7 +382,8 @@ def update_task(
             return
 
         try:
-            updated_task = await mgr.update_task(task_id, updates, "default_user")
+            updated_task = await mgr.update_task(task_id, updates, DEFAULT_CLI_USER_ID)
+            await flush_storage(mgr)
             rprint(f"[green]✅ Task updated: {updated_task.title}[/green]")
         except Exception as e:
             rprint(f"[red]❌ Error updating task: {e}[/red]")
@@ -295,7 +396,7 @@ def delete_task(task_id: str = typer.Argument(..., help="Task ID")):
     """Delete a task"""
 
     async def _delete_task():
-        mgr = get_manager()
+        mgr = await get_ready_manager()
 
         # Confirm deletion
         if not Confirm.ask(f"Are you sure you want to delete task {task_id[:8]}?"):
@@ -303,8 +404,9 @@ def delete_task(task_id: str = typer.Argument(..., help="Task ID")):
             return
 
         try:
-            success = await mgr.delete_task(task_id, "default_user")
+            success = await mgr.delete_task(task_id, DEFAULT_CLI_USER_ID)
             if success:
+                await flush_storage(mgr)
                 rprint(f"[green]✅ Task {task_id[:8]} deleted[/green]")
             else:
                 rprint(f"[red]❌ Task {task_id} not found[/red]")
@@ -329,12 +431,15 @@ def create_project(
     """Create a new project"""
 
     async def _create_project():
-        mgr = get_manager()
+        mgr = await get_ready_manager()
 
-        project = Project(name=name, description=description, owner_id="default_user")
+        project = Project(
+            name=name, description=description, owner_id=DEFAULT_CLI_USER_ID
+        )
 
         try:
-            created_project = await mgr.create_project(project, "default_user")
+            created_project = await mgr.create_project(project, DEFAULT_CLI_USER_ID)
+            await flush_storage(mgr)
             rprint(
                 f"[green]✅ Project created: {created_project.name} (ID: {created_project.id[:8]})[/green]"
             )
@@ -353,7 +458,7 @@ def show_statistics(
     """Show task statistics and metrics"""
 
     async def _show_stats():
-        mgr = get_manager()
+        mgr = await get_ready_manager()
 
         try:
             stats = await mgr.get_task_statistics(project, user)
@@ -384,12 +489,12 @@ def show_dashboard():
     """Show interactive dashboard"""
 
     async def _show_dashboard():
-        mgr = get_manager()
+        mgr = await get_ready_manager()
 
         try:
             # Get overview data
-            overdue_tasks = await mgr.get_overdue_tasks("default_user")
-            upcoming_tasks = await mgr.get_upcoming_tasks(7, "default_user")
+            overdue_tasks = await mgr.get_overdue_tasks(DEFAULT_CLI_USER_ID)
+            upcoming_tasks = await mgr.get_upcoming_tasks(7, DEFAULT_CLI_USER_ID)
             stats = await mgr.get_task_statistics()
 
             console.print(Panel.fit("🔥 TaskForge Dashboard", style="bold blue"))

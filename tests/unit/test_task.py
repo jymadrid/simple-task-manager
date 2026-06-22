@@ -28,6 +28,16 @@ class TestTask:
         assert len(task.id) > 0
         assert isinstance(task.created_at, datetime)
 
+    def test_task_time_tracking_entries_are_independent(self):
+        """Task time tracking entries should not share mutable defaults."""
+        first = Task(title="First")
+        second = Task(title="Second")
+
+        first.add_time_entry(1.0, "Initial work")
+
+        assert len(first.time_tracking.time_entries) == 1
+        assert second.time_tracking.time_entries == []
+
     def test_task_validation(self):
         """Test task field validation"""
         # Test empty title
@@ -71,6 +81,15 @@ class TestTask:
         assert task.progress == 100
         assert task.status == TaskStatus.DONE
         assert task.completed_at is not None
+
+    def test_string_status_progress_updates_reopen_completed_task(self):
+        """Progress updates should handle persisted string status values."""
+        task = Task(title="Completed Task", status="done", progress=100)
+
+        task.update_progress(50, "user123")
+
+        assert task.status == TaskStatus.IN_PROGRESS
+        assert task.completed_at is None
 
     def test_tag_management(self):
         """Test tag addition and removal"""
@@ -132,6 +151,14 @@ class TestTask:
         # Completed task should not be overdue
         task3 = Task(title="Completed Task", due_date=past_date, status=TaskStatus.DONE)
         assert not task3.is_overdue()
+
+        # Persisted string statuses should follow the same terminal-state rules.
+        task4 = Task(title="Completed String Task", due_date=past_date, status="done")
+        task5 = Task(
+            title="Cancelled String Task", due_date=past_date, status="cancelled"
+        )
+        assert not task4.is_overdue()
+        assert not task5.is_overdue()
 
     def test_days_until_due(self):
         """Test days until due calculation"""

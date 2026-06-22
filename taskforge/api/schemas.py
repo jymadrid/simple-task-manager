@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List, Optional, Set
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from taskforge.core.project import ProjectStatus
 from taskforge.core.task import TaskPriority, TaskStatus, TaskType
@@ -21,8 +21,7 @@ class UserPublic(BaseModel):
     email: EmailStr
     full_name: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Project Schemas
@@ -46,8 +45,7 @@ class ProjectPublic(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Task Schemas
@@ -85,5 +83,4 @@ class TaskPublic(BaseModel):
     tags: Set[str]
     progress: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

@@ -6,10 +6,39 @@ import asyncio
 import time
 from contextlib import asynccontextmanager
 from functools import wraps
-from typing import Any, Callable, Dict, Optional
+from types import TracebackType
+from typing import Any, AsyncIterator, Callable, Dict, List, Optional, Type
 
 # Performance metrics storage
-_metrics: Dict[str, list] = {}
+_metrics: Dict[str, List[float]] = {}
+
+
+def _summarize_metrics(
+    metrics: Dict[str, List[float]], name: Optional[str] = None
+) -> Dict[str, Dict[str, float]]:
+    """Build summary statistics for metric samples."""
+    data = {name: metrics.get(name, [])} if name else metrics
+
+    stats: Dict[str, Dict[str, float]] = {}
+    for metric_name, values in data.items():
+        if values:
+            stats[metric_name] = {
+                "count": float(len(values)),
+                "avg": sum(values) / len(values),
+                "min": min(values),
+                "max": max(values),
+                "last": values[-1],
+            }
+        else:
+            stats[metric_name] = {
+                "count": 0.0,
+                "avg": 0.0,
+                "min": 0.0,
+                "max": 0.0,
+                "last": 0.0,
+            }
+
+    return stats
 
 
 class PerformanceTimer:
@@ -17,21 +46,28 @@ class PerformanceTimer:
 
     def __init__(self, name: str):
         self.name = name
-        self.start_time = None
-        self.end_time = None
+        self.start_time: Optional[float] = None
+        self.end_time: Optional[float] = None
 
-    def __enter__(self):
+    def __enter__(self) -> "PerformanceTimer":
         self.start_time = time.perf_counter()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
         self.end_time = time.perf_counter()
+        if self.start_time is None:
+            return
         duration = self.end_time - self.start_time
         record_metric(self.name, duration)
 
     @property
     def duration(self) -> Optional[float]:
-        if self.start_time and self.end_time:
+        if self.start_time is not None and self.end_time is not None:
             return self.end_time - self.start_time
         return None
 
@@ -45,31 +81,7 @@ def record_metric(name: str, value: float) -> None:
 
 def get_metrics(name: Optional[str] = None) -> Dict[str, Dict[str, float]]:
     """Get performance metrics statistics"""
-    if name:
-        data = {name: _metrics.get(name, [])}
-    else:
-        data = _metrics
-
-    stats = {}
-    for metric_name, values in data.items():
-        if values:
-            stats[metric_name] = {
-                "count": len(values),
-                "avg": sum(values) / len(values),
-                "min": min(values),
-                "max": max(values),
-                "last": values[-1],
-            }
-        else:
-            stats[metric_name] = {
-                "count": 0,
-                "avg": 0.0,
-                "min": 0.0,
-                "max": 0.0,
-                "last": 0.0,
-            }
-
-    return stats
+    return _summarize_metrics(_metrics, name)
 
 
 def clear_metrics(name: Optional[str] = None) -> None:
@@ -80,12 +92,12 @@ def clear_metrics(name: Optional[str] = None) -> None:
         _metrics.clear()
 
 
-def time_function(func: Callable) -> Callable:
+def time_function(func: Callable[..., Any]) -> Callable[..., Any]:
     """Decorator to time function execution"""
     if asyncio.iscoroutinefunction(func):
 
         @wraps(func)
-        async def async_wrapper(*args, **kwargs):
+        async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
             start_time = time.perf_counter()
             try:
                 result = await func(*args, **kwargs)
@@ -99,7 +111,7 @@ def time_function(func: Callable) -> Callable:
     else:
 
         @wraps(func)
-        def sync_wrapper(*args, **kwargs):
+        def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
             start_time = time.perf_counter()
             try:
                 result = func(*args, **kwargs)
@@ -113,7 +125,7 @@ def time_function(func: Callable) -> Callable:
 
 
 @asynccontextmanager
-async def async_timer(name: str):
+async def async_timer(name: str) -> AsyncIterator[None]:
     """Async context manager for timing operations"""
     start_time = time.perf_counter()
     try:
@@ -127,8 +139,8 @@ async def async_timer(name: str):
 class PerformanceMonitor:
     """Performance monitoring class for tracking operations"""
 
-    def __init__(self):
-        self.metrics: Dict[str, list] = {}
+    def __init__(self) -> None:
+        self.metrics: Dict[str, List[float]] = {}
 
     def record(self, name: str, value: float) -> None:
         """Record a metric"""
@@ -143,7 +155,7 @@ class PerformanceMonitor:
         else:
             data = self.metrics
 
-        return get_metrics() if name is None else get_metrics(name)
+        return _summarize_metrics(self.metrics, name)
 
     def reset(self) -> None:
         """Reset all metrics"""

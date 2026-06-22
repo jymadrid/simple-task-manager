@@ -148,8 +148,8 @@ class TestHelper:
         """Assert that two tasks are equal, ignoring specified fields"""
         ignore_fields = ignore_fields or ["updated_at", "activity_log"]
 
-        task1_dict = task1.dict()
-        task2_dict = task2.dict()
+        task1_dict = task1.model_dump()
+        task2_dict = task2.model_dump()
 
         for field in ignore_fields:
             task1_dict.pop(field, None)

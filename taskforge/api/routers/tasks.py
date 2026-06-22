@@ -1,12 +1,13 @@
-from typing import List
+from datetime import datetime
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from taskforge.api.dependencies import get_current_user, get_task_manager
 from taskforge.api.schemas import TaskCreate, TaskPublic, TaskUpdate
 from taskforge.core.manager import TaskManager
-from taskforge.core.queries import TaskQuery
-from taskforge.core.task import Task
+from taskforge.core.queries import TaskQuery, TaskSortField
+from taskforge.core.task import Task, TaskPriority, TaskStatus
 from taskforge.core.user import User
 
 router = APIRouter()
@@ -43,20 +44,51 @@ async def create_task(
 
 @router.get("/", response_model=List[TaskPublic])
 async def list_tasks_in_project(
-    project_id: str,
+    project_id: Optional[str] = Query(None),
+    status: Optional[List[TaskStatus]] = Query(None),
+    priority: Optional[List[TaskPriority]] = Query(None),
+    assigned_to: Optional[str] = Query(None),
+    tags: Optional[List[str]] = Query(None),
+    search: Optional[str] = Query(None),
+    created_after: Optional[datetime] = Query(None),
+    created_before: Optional[datetime] = Query(None),
+    due_after: Optional[datetime] = Query(None),
+    due_before: Optional[datetime] = Query(None),
+    limit: int = Query(100, ge=0, le=1000),
+    offset: int = Query(0, ge=0),
+    sort_by: TaskSortField = Query("created_at"),
+    sort_desc: bool = Query(True),
+    tags_match_all: bool = Query(True),
     manager: TaskManager = Depends(get_task_manager),
     current_user: User = Depends(get_current_user),
 ):
     """
-    List all tasks for a specific project.
+    List tasks visible to the current user, with optional project and field filters.
     """
-    project = await manager.get_project(project_id)
-    if not project or not project.is_member(current_user.id):
-        raise HTTPException(
-            status_code=403, detail="Not authorized to view tasks in this project"
-        )
+    if project_id:
+        project = await manager.get_project(project_id)
+        if not project or not project.is_member(current_user.id):
+            raise HTTPException(
+                status_code=403, detail="Not authorized to view tasks in this project"
+            )
 
-    query = TaskQuery(project_id=project_id)
+    query = TaskQuery(
+        project_id=project_id,
+        status=status,
+        priority=priority,
+        assigned_to=assigned_to or (None if project_id else current_user.id),
+        tags=tags,
+        search_text=search,
+        created_after=created_after,
+        created_before=created_before,
+        due_after=due_after,
+        due_before=due_before,
+        limit=limit,
+        offset=offset,
+        sort_by=sort_by,
+        sort_desc=sort_desc,
+        tags_match_all=tags_match_all,
+    )
     tasks = await manager.search_tasks(query, current_user.id)
     return tasks
 
@@ -103,7 +135,7 @@ async def update_task(
             status_code=403, detail="Not authorized to update this task"
         )
 
-    update_data = task_in.dict(exclude_unset=True)
+    update_data = task_in.model_dump(exclude_unset=True)
     updated_task = await manager.update_task(task_id, update_data, current_user.id)
     return updated_task
 

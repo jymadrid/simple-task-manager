@@ -50,6 +50,7 @@ dependencies = [
     "passlib[bcrypt]>=1.7.4",
     "email-validator>=2.0.0",
     "websockets>=12.0",
+    "defusedxml>=0.7.1",
 ]
 requires-python = ">=3.9"
 
@@ -110,7 +111,10 @@ tf = "taskforge.cli:main"
 # Plugin entry points for extensibility
 
 [tool.setuptools]
-packages = ["taskforge"]
+
+[tool.setuptools.packages.find]
+include = ["taskforge*"]
+exclude = ["tests*", "examples*", "benchmarks*"]
 
 [tool.setuptools_scm]
 write_to = "taskforge/_version.py"

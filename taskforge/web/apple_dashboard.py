@@ -3,7 +3,7 @@ Apple-inspired web dashboard using Streamlit with modern design
 """
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 import pandas as pd
@@ -14,6 +14,12 @@ import streamlit as st
 from taskforge.core.manager import TaskManager, TaskQuery
 from taskforge.core.task import Task, TaskPriority, TaskStatus
 from taskforge.storage.json_storage import JSONStorage
+from taskforge.web.helpers import (
+    display_value,
+    ensure_dashboard_user,
+    is_overdue_task,
+    is_upcoming_task,
+)
 
 # Apple Design System Configuration
 APPLE_COLORS = {
@@ -322,25 +328,17 @@ def get_manager() -> TaskManager:
 async def load_dashboard_data() -> Dict[str, Any]:
     """Load all dashboard data"""
     mgr = get_manager()
-    user_id = st.session_state.current_user
+    user = await ensure_dashboard_user(mgr, st.session_state.current_user)
+    user_id = user.id
 
     # Load various data
     all_tasks_query = TaskQuery(limit=1000)
     all_tasks = await mgr.search_tasks(all_tasks_query, user_id)
 
     # Calculate metrics
-    overdue_tasks = [
-        t
-        for t in all_tasks
-        if t.due_date and t.due_date < datetime.now() and t.status != TaskStatus.DONE
-    ]
-    upcoming_tasks = [
-        t
-        for t in all_tasks
-        if t.due_date
-        and t.due_date > datetime.now()
-        and t.due_date < datetime.now() + timedelta(days=7)
-    ]
+    now = datetime.now(timezone.utc)
+    overdue_tasks = [t for t in all_tasks if is_overdue_task(t, now)]
+    upcoming_tasks = [t for t in all_tasks if is_upcoming_task(t, now=now)]
 
     stats = {
         "total_tasks": len(all_tasks),
@@ -391,7 +389,8 @@ def create_apple_status_chart(tasks: List[Task]) -> go.Figure:
     """Create Apple-style task status distribution chart"""
     status_counts = {}
     for task in tasks:
-        status_counts[task.status.value] = status_counts.get(task.status.value, 0) + 1
+        status = display_value(task.status)
+        status_counts[status] = status_counts.get(status, 0) + 1
 
     fig = px.pie(
         values=list(status_counts.values()),
@@ -427,9 +426,8 @@ def create_apple_priority_chart(tasks: List[Task]) -> go.Figure:
     """Create Apple-style task priority distribution chart"""
     priority_counts = {}
     for task in tasks:
-        priority_counts[task.priority.value] = (
-            priority_counts.get(task.priority.value, 0) + 1
-        )
+        priority = display_value(task.priority)
+        priority_counts[priority] = priority_counts.get(priority, 0) + 1
 
     fig = px.bar(
         x=list(priority_counts.keys()),
@@ -478,8 +476,8 @@ def render_apple_task_table(tasks: List[Task], title: str):
             {
                 "ID": task.id[:8],
                 "Title": task.title,
-                "Status": task.status.value,
-                "Priority": task.priority.value,
+                "Status": display_value(task.status),
+                "Priority": display_value(task.priority),
                 "Progress": f"{task.progress}%",
                 "Due Date": task.due_date.strftime("%m/%d") if task.due_date else "—",
                 "Created": task.created_at.strftime("%m/%d"),
@@ -633,8 +631,26 @@ def render_tasks_page():
 
             if submitted and title:
                 try:
-                    # Create task logic would go here
-                    st.success(f"✅ Task '{title}' created successfully!")
+                    mgr = get_manager()
+                    user = asyncio.run(
+                        ensure_dashboard_user(mgr, st.session_state.current_user)
+                    )
+                    task = Task(
+                        title=title,
+                        description=description or None,
+                        priority=TaskPriority(priority),
+                        due_date=(
+                            datetime.combine(
+                                due_date, datetime.min.time(), tzinfo=timezone.utc
+                            )
+                            if due_date
+                            else None
+                        ),
+                        assigned_to=user.id,
+                        tags=set(tag.strip() for tag in tags.split(",") if tag.strip()),
+                    )
+                    created_task = asyncio.run(mgr.create_task(task, user.id))
+                    st.success(f"✅ Task '{created_task.title}' created successfully!")
                 except Exception as e:
                     st.error(f"❌ Error creating task: {e}")
 
@@ -651,11 +667,21 @@ def render_tasks_page():
     with col3:
         priority_filter = st.multiselect("Priority", [p.value for p in TaskPriority])
 
-    # Mock task display
-    st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
-    st.markdown("### Your Tasks")
-    st.info("Task list will be displayed here with your search criteria.")
-    st.markdown("</div>", unsafe_allow_html=True)
+    try:
+        mgr = get_manager()
+        user = asyncio.run(ensure_dashboard_user(mgr, st.session_state.current_user))
+        query = TaskQuery(
+            status=[TaskStatus(s) for s in status_filter] if status_filter else None,
+            priority=(
+                [TaskPriority(p) for p in priority_filter] if priority_filter else None
+            ),
+            search_text=search_text or None,
+            limit=100,
+        )
+        tasks = asyncio.run(mgr.search_tasks(query, user.id))
+        render_apple_task_table(tasks, f"Your Tasks ({len(tasks)})")
+    except Exception as e:
+        st.error(f"Unable to load tasks: {e}")
 
 
 def render_projects_page():
