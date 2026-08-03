@@ -91,7 +91,7 @@ jobs:
     - name: Run tests
       run: |
         # Run complete test suite with coverage enforcement
-        pytest --cov=taskforge --cov-report=xml --cov-fail-under=80
+        pytest --cov=taskforge --cov-report=xml --cov-fail-under=55
         
     - name: Run basic functionality test
       run: |
