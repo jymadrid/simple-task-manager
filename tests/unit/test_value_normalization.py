@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 import pytest
 
 from taskforge.core.queries import TaskQuery
-from taskforge.core.task import Task, TaskPriority, TaskStatus, TaskType
+from taskforge.core.task import Task, TaskPriority, TaskStatus
 from taskforge.core.user import User
 from taskforge.storage.models import TaskModel, UserModel
 from taskforge.utils.analytics import AnalyticsEngine

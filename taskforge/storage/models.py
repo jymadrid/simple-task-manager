@@ -2,12 +2,10 @@
 SQLAlchemy models for database storage
 """
 
-import json
 from datetime import datetime, timezone
 from typing import Any, Dict, cast
 
 from sqlalchemy import JSON, Boolean, Column, DateTime, Float, Integer, String, Text
-from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import declarative_base
 
 from taskforge.core.project import Project, ProjectStatus

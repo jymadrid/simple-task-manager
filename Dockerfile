@@ -17,12 +17,9 @@ RUN apt-get update && apt-get install -y \
 COPY pyproject.toml README.md ./
 COPY taskforge/ taskforge/
 
-# Create version file
-RUN echo '__version__ = "1.0.0"' > taskforge/_version.py
-
 # Install Python dependencies
 RUN pip install --upgrade pip && \
-    pip install -e ".[dev]"
+    pip install --no-cache-dir -e ".[dev]"
 
 # Create non-root user
 RUN useradd -m -u 1000 taskforge && \

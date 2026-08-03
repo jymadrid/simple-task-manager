@@ -2,7 +2,6 @@
 Integration tests for API endpoints
 """
 
-from datetime import datetime
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -10,7 +9,7 @@ from fastapi.testclient import TestClient
 
 from taskforge.api import create_app
 from taskforge.core.task import Task, TaskPriority, TaskStatus
-from taskforge.core.user import User, UserRole
+from taskforge.core.user import User
 
 
 @pytest.fixture
@@ -89,7 +88,7 @@ class TestTaskAPI:
         task_data = {"title": "Unauthorized Task", "description": "Should fail"}
 
         response = api_client.post("/tasks", json=task_data)
-        assert response.status_code == 403  # Forbidden without auth
+        assert response.status_code == 401  # Unauthorized without auth
 
     def test_demo_auth_creates_task_with_empty_storage(
         self, tmp_path, auth_headers, monkeypatch

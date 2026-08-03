@@ -1,5 +1,3 @@
-from typing import List
-
 from fastapi import APIRouter, Depends, HTTPException
 
 from taskforge.api.dependencies import get_task_manager

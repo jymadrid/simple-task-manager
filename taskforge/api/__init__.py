@@ -5,7 +5,7 @@ FastAPI-based REST API
 import os
 import secrets
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 import uvicorn
 from fastapi import Depends, FastAPI, HTTPException, Query, status
@@ -15,7 +15,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 from taskforge.core.manager import TaskManager
-from taskforge.core.project import Project, ProjectStatus
+from taskforge.core.project import Project
 from taskforge.core.queries import TaskQuery
 from taskforge.core.task import Task, TaskPriority, TaskStatus, TaskType
 from taskforge.core.user import User, UserRole

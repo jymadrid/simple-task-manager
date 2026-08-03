@@ -8,9 +8,9 @@ from collections import defaultdict, deque
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Set, cast
 
-from taskforge.core.project import Project, ProjectStatus
+from taskforge.core.project import Project
 from taskforge.core.queries import TaskQuery
-from taskforge.core.task import Task, TaskPriority, TaskStatus
+from taskforge.core.task import Task, TaskStatus
 from taskforge.core.user import Permission, User
 from taskforge.storage.base import StorageProtocol
 

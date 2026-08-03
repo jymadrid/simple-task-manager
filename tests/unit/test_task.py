@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from taskforge.core.task import Task, TaskDependency, TaskPriority, TaskStatus, TaskType
+from taskforge.core.task import Task, TaskPriority, TaskStatus
 
 
 class TestTask:

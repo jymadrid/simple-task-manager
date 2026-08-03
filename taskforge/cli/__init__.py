@@ -4,19 +4,18 @@ Modern CLI interface using Typer
 
 import asyncio
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import List, Optional
 
 import typer
 from rich import print as rprint
 from rich.console import Console
 from rich.panel import Panel
-from rich.progress import Progress
-from rich.prompt import Confirm, Prompt
+from rich.prompt import Confirm
 from rich.table import Table
 
 from taskforge.core.manager import TaskManager, TaskQuery
-from taskforge.core.project import Project, ProjectStatus
+from taskforge.core.project import Project
 from taskforge.core.task import Task, TaskPriority, TaskStatus, TaskType
 from taskforge.core.user import User, UserRole
 from taskforge.storage.json_storage import JSONStorage

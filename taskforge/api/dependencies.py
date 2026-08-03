@@ -1,8 +1,7 @@
 import os
 import secrets
 
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi import HTTPException, status
 
 from taskforge.core.manager import TaskManager
 from taskforge.core.user import User

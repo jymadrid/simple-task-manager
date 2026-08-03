@@ -3,7 +3,6 @@ Unit tests for TaskManager
 """
 
 from datetime import datetime, timedelta, timezone
-from unittest.mock import AsyncMock, Mock
 
 import pytest
 from conftest import TestHelper
@@ -12,7 +11,7 @@ from taskforge.core.manager import TaskManager
 from taskforge.core.project import Project
 from taskforge.core.queries import TaskQuery
 from taskforge.core.task import Task, TaskPriority, TaskStatus
-from taskforge.core.user import Permission, User
+from taskforge.core.user import User
 
 
 class TestTaskManager:

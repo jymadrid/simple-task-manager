@@ -7,15 +7,8 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Set
 from uuid import uuid4
 
+import bcrypt
 from pydantic import BaseModel, ConfigDict, Field
-
-_bcrypt: Any
-try:
-    import bcrypt as _bcrypt
-except ImportError:
-    _bcrypt = None
-
-bcrypt: Any = _bcrypt
 
 
 class UserRole(str, Enum):
@@ -224,15 +217,9 @@ class User(BaseModel):
         if "@" not in email or "." not in email:
             raise ValueError("Invalid email format")
 
-        if bcrypt:
-            password_hash = bcrypt.hashpw(
-                password.encode("utf-8"), bcrypt.gensalt()
-            ).decode("utf-8")
-        else:
-            # Fallback for environments without bcrypt
-            import hashlib
-
-            password_hash = hashlib.sha256(password.encode()).hexdigest()
+        password_hash = bcrypt.hashpw(
+            password.encode("utf-8"), bcrypt.gensalt()
+        ).decode("utf-8")
         return cls(
             username=username,
             email=email,
@@ -243,29 +230,15 @@ class User(BaseModel):
 
     def verify_password(self, password: str) -> bool:
         """Verify user password"""
-        if bcrypt:
-            return bool(
-                bcrypt.checkpw(
-                    password.encode("utf-8"), self.password_hash.encode("utf-8")
-                )
-            )
-        else:
-            # Fallback verification for environments without bcrypt
-            import hashlib
-
-            return hashlib.sha256(password.encode()).hexdigest() == self.password_hash
+        return bool(
+            bcrypt.checkpw(password.encode("utf-8"), self.password_hash.encode("utf-8"))
+        )
 
     def update_password(self, new_password: str) -> None:
         """Update user password with new hash"""
-        if bcrypt:
-            self.password_hash = bcrypt.hashpw(
-                new_password.encode("utf-8"), bcrypt.gensalt()
-            ).decode("utf-8")
-        else:
-            # Fallback for environments without bcrypt
-            import hashlib
-
-            self.password_hash = hashlib.sha256(new_password.encode()).hexdigest()
+        self.password_hash = bcrypt.hashpw(
+            new_password.encode("utf-8"), bcrypt.gensalt()
+        ).decode("utf-8")
         self._log_activity("password_updated")
 
     def has_permission(self, permission: Permission) -> bool:

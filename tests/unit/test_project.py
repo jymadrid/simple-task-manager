@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 import pytest
 
 from taskforge.core.project import Project, ProjectStatus
-from taskforge.core.user import User, UserRole
+from taskforge.core.user import UserRole
 
 
 class TestProject:

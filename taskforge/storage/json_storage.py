@@ -8,53 +8,9 @@ import logging
 from collections import OrderedDict
 from datetime import datetime, timezone
 from pathlib import Path
-from types import TracebackType
-from typing import Any, Dict, List, Optional, TextIO, Type, cast
+from typing import Any, Dict, List, Optional
 
-try:
-    import aiofiles  # type: ignore[import-untyped]
-except ImportError:
-
-    def _open_text_file(path: Path, mode: str) -> TextIO:
-        return cast(TextIO, open(path, mode, encoding="utf-8"))
-
-    class _AsyncFile:
-        """Small aiofiles-compatible fallback for minimal environments."""
-
-        def __init__(self, path: Path, mode: str) -> None:
-            self.path = path
-            self.mode = mode
-            self._file: Optional[TextIO] = None
-
-        async def __aenter__(self) -> "_AsyncFile":
-            self._file = await asyncio.to_thread(_open_text_file, self.path, self.mode)
-            return self
-
-        async def __aexit__(
-            self,
-            exc_type: Optional[Type[BaseException]],
-            exc: Optional[BaseException],
-            tb: Optional[TracebackType],
-        ) -> None:
-            if self._file:
-                await asyncio.to_thread(self._file.close)
-
-        async def read(self) -> str:
-            if self._file is None:
-                raise RuntimeError("File is not open")
-            return await asyncio.to_thread(self._file.read)
-
-        async def write(self, data: str) -> int:
-            if self._file is None:
-                raise RuntimeError("File is not open")
-            return await asyncio.to_thread(self._file.write, data)
-
-    class _AiofilesFallback:
-        @staticmethod
-        def open(path: Path, mode: str) -> _AsyncFile:
-            return _AsyncFile(path, mode)
-
-    aiofiles = _AiofilesFallback()
+import aiofiles
 
 from taskforge.core.project import Project
 from taskforge.core.queries import TaskQuery

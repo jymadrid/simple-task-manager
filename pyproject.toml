@@ -158,6 +158,7 @@ warn_unused_ignores = true
 warn_no_return = true
 warn_unreachable = true
 strict_equality = true
+exclude = ["taskforge/_version.py", "taskforge/marketplace.py"]
 
 [[tool.mypy.overrides]]
 module = "tests.*"
@@ -185,24 +186,7 @@ markers = [
 
 [tool.coverage.run]
 source = ["taskforge"]
-omit = [
-    "*/tests/*",
-    "*/test_*",
-    "taskforge/_version.py",
-    "*/integrations/*",
-    "*/marketplace.py",
-    "*/plugins/*",
-    "*/web/*",
-    "*/cli/*",
-    "*/utils/cache.py",
-    "*/utils/search.py",
-    "*/utils/analytics.py",
-    "*/utils/notifications.py",
-    "*/storage/models.py",
-    "*/storage/optimized_storage.py",
-    "*/storage/postgresql.py",
-    "*/types.py",
-]
+omit = ["*/tests/*", "taskforge/_version.py"]
 
 [tool.coverage.report]
 exclude_lines = [

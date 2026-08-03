@@ -2,18 +2,16 @@
 Analytics and reporting engine for TaskForge
 """
 
-import asyncio
 import logging
 import statistics
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Union
 
-from taskforge.core.project import Project, ProjectStatus
-from taskforge.core.task import Task, TaskPriority, TaskStatus, TaskType
-from taskforge.core.user import User
+from taskforge.core.project import Project
+from taskforge.core.task import Task, TaskPriority, TaskStatus
 from taskforge.utils.values import enum_matches, enum_value
 
 logger = logging.getLogger(__name__)
@@ -590,7 +588,6 @@ class AnalyticsEngine:
                 risk_factors.append(0.0)  # Plenty of time
 
         # Team capacity factor (simplified)
-        assigned_users = set(t.assigned_to for t in tasks if t.assigned_to)
         unassigned_tasks = len([t for t in tasks if not t.assigned_to])
         unassigned_ratio = unassigned_tasks / total_tasks if total_tasks > 0 else 0.0
         risk_factors.append(unassigned_ratio * 0.3)  # 30% weight

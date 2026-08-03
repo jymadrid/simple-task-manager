@@ -2,8 +2,6 @@
 Simplified PostgreSQL storage for CI compatibility
 """
 
-import asyncio
-from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from taskforge.core.project import Project

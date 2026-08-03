@@ -4,11 +4,10 @@ Advanced search engine for TaskForge
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from enum import Enum
 from typing import (
     TYPE_CHECKING,

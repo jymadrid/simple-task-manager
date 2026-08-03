@@ -16,7 +16,7 @@ import pytest_asyncio
 from taskforge.core.project import Project, ProjectStatus
 from taskforge.core.queries import TaskQuery
 from taskforge.core.task import Task, TaskPriority, TaskStatus
-from taskforge.core.user import User, UserRole
+from taskforge.core.user import User
 from taskforge.storage.json_storage import JSONStorage
 
 

@@ -13,7 +13,6 @@ from email.mime.text import MIMEText
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
-from taskforge.core.project import Project
 from taskforge.core.task import Task
 from taskforge.core.user import User
 from taskforge.utils.values import enum_title

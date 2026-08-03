@@ -712,13 +712,13 @@ def render_settings_page():
 
     st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
     st.markdown("### Appearance")
-    theme = st.selectbox("Theme", ["Light", "Dark", "Auto"])
-    accent_color = st.selectbox("Accent Color", ["Blue", "Purple", "Green", "Orange"])
+    st.selectbox("Theme", ["Light", "Dark", "Auto"])
+    st.selectbox("Accent Color", ["Blue", "Purple", "Green", "Orange"])
 
     st.markdown("### Notifications")
-    email_notifications = st.checkbox("Email notifications", value=True)
-    push_notifications = st.checkbox("Push notifications", value=True)
-    due_date_reminders = st.checkbox("Due date reminders", value=True)
+    st.checkbox("Email notifications", value=True)
+    st.checkbox("Push notifications", value=True)
+    st.checkbox("Due date reminders", value=True)
 
     if st.button("Save Settings", use_container_width=True):
         st.success("✅ Settings saved successfully!")

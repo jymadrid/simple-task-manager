@@ -2,7 +2,7 @@
 Performance monitoring and optimization utilities
 """
 
-import asyncio
+import inspect
 import time
 from contextlib import asynccontextmanager
 from functools import wraps
@@ -94,7 +94,7 @@ def clear_metrics(name: Optional[str] = None) -> None:
 
 def time_function(func: Callable[..., Any]) -> Callable[..., Any]:
     """Decorator to time function execution"""
-    if asyncio.iscoroutinefunction(func):
+    if inspect.iscoroutinefunction(func):
 
         @wraps(func)
         async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -150,11 +150,6 @@ class PerformanceMonitor:
 
     def get_stats(self, name: Optional[str] = None) -> Dict[str, Dict[str, float]]:
         """Get statistics for metrics"""
-        if name:
-            data = {name: self.metrics.get(name, [])}
-        else:
-            data = self.metrics
-
         return _summarize_metrics(self.metrics, name)
 
     def reset(self) -> None:
